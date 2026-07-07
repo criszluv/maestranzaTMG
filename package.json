@@ -1,0 +1,13 @@
+{
+  "name": "portal-maestranzatmg",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "concurrently -k -n BACKEND,FRONTEND -c blue,green \"npm:dev:backend\" \"npm:dev:frontend\"",
+    "dev:backend": "backend\\.venv\\Scripts\\python.exe -m uvicorn app.main:app --reload --app-dir backend --reload-dir backend\\app --host 127.0.0.1 --port 8000",
+    "dev:frontend": "npm --prefix frontend run dev"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}

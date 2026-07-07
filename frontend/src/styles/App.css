@@ -1,0 +1,798 @@
+/* ============================================================
+   COMPONENTES UI — construidos sobre los tokens de index.css.
+   Mismos nombres de clase que usan las vistas (compatibilidad).
+   ============================================================ */
+
+/* --- SHELL DE LA APLICACIÓN (sidebar + contenido) --- */
+.app-shell {
+  display: flex;
+  min-height: 100vh;
+  background: var(--bg);
+}
+
+.app-main {
+  flex: 1;
+  min-width: 0; /* permite que las tablas hagan scroll y no rompan el layout */
+}
+
+/* --- SIDEBAR --- */
+.sidebar {
+  width: var(--sidebar-width);
+  flex-shrink: 0;
+  background: var(--sidebar-bg);
+  color: var(--sidebar-text);
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.sidebar__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 16px;
+  border-bottom: 1px solid var(--sidebar-border);
+}
+
+.sidebar__logo {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-sm);
+  background: var(--brand);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: var(--fs-sm);
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+
+.sidebar__brand-name {
+  color: #fff;
+  font-weight: 600;
+  font-size: var(--fs-base);
+  line-height: 1.2;
+}
+
+.sidebar__brand-sub {
+  font-size: 11px;
+  color: var(--sidebar-text);
+  opacity: 0.8;
+}
+
+.sidebar__nav {
+  flex: 1;
+  padding: 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sidebar__section {
+  margin: 14px 8px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.sidebar__link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: var(--radius-sm);
+  color: var(--sidebar-text);
+  text-decoration: none;
+  font-size: var(--fs-base);
+  border-left: 3px solid transparent;
+  transition: background-color 0.15s ease, color 0.15s ease;
+  min-height: 40px;
+  box-sizing: border-box;
+}
+
+.sidebar__link:hover {
+  background: var(--sidebar-hover);
+  color: var(--sidebar-text-active);
+}
+
+.sidebar__link--activo {
+  background: var(--sidebar-active);
+  color: var(--sidebar-text-active);
+  border-left-color: #3b82f6;
+  font-weight: 600;
+}
+
+.sidebar__footer {
+  border-top: 1px solid var(--sidebar-border);
+  padding: 14px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sidebar__avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-full);
+  background: #334155;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.sidebar__user {
+  min-width: 0;
+  flex: 1;
+}
+
+.sidebar__user-nombre {
+  color: #fff;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar__user-rol {
+  font-size: 11px;
+  text-transform: capitalize;
+  color: var(--sidebar-text);
+}
+
+.sidebar__logout {
+  background: transparent;
+  border: 1px solid var(--sidebar-border);
+  color: var(--sidebar-text);
+  border-radius: var(--radius-sm);
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.sidebar__logout:hover {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+}
+
+/* Sidebar responsiva: en pantallas angostas pasa a barra superior */
+@media (max-width: 860px) {
+  .app-shell {
+    flex-direction: column;
+  }
+  .sidebar {
+    width: 100%;
+    height: auto;
+    position: static;
+    flex-direction: row;
+    align-items: center;
+    overflow-x: auto;
+  }
+  .sidebar__brand {
+    border-bottom: none;
+    padding: 10px 12px;
+  }
+  .sidebar__brand-sub,
+  .sidebar__section,
+  .sidebar__user {
+    display: none;
+  }
+  .sidebar__nav {
+    flex-direction: row;
+    padding: 8px;
+  }
+  .sidebar__link {
+    border-left: none;
+    border-bottom: 3px solid transparent;
+    white-space: nowrap;
+  }
+  .sidebar__link--activo {
+    border-bottom-color: #3b82f6;
+  }
+  .sidebar__footer {
+    border-top: none;
+    margin-left: auto;
+  }
+}
+
+/* --- LAYOUT DE PÁGINA --- */
+.page-container {
+  width: 100%;
+  padding: var(--space-5) 4%;
+  box-sizing: border-box;
+}
+
+.page-header {
+  margin-bottom: var(--space-5);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.page-header h2 {
+  margin: 0;
+  font-size: var(--fs-xl);
+  font-weight: 650;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+
+.page-header p {
+  margin: 6px 0 0;
+  font-size: var(--fs-base);
+  color: var(--text-2);
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: var(--space-5);
+  align-items: start;
+}
+
+/* --- TARJETAS --- */
+.card {
+  background-color: var(--surface);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.card-title {
+  margin: 0 0 var(--space-4);
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* --- ESTADÍSTICAS (dashboard / cabeceras) --- */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  box-shadow: var(--shadow-sm);
+}
+
+.stat-card__label {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-3);
+  margin-bottom: 4px;
+}
+
+.stat-card__value {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.2;
+}
+
+.stat-card--danger {
+  border-left: 4px solid var(--danger);
+}
+.stat-card--danger .stat-card__value {
+  color: var(--danger);
+}
+.stat-card--warning {
+  border-left: 4px solid #d97706;
+}
+.stat-card--warning .stat-card__value {
+  color: var(--warning);
+}
+.stat-card--ok {
+  border-left: 4px solid var(--success);
+}
+
+/* --- BANNERS DE ESTADO --- */
+.banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  font-size: var(--fs-base);
+  border: 1px solid var(--border);
+  margin-bottom: var(--space-4);
+}
+
+.banner--danger {
+  background: var(--danger-soft);
+  border-color: var(--danger-border);
+  color: var(--danger);
+}
+
+.banner--warning {
+  background: var(--warning-soft);
+  border-color: var(--warning-border);
+  color: var(--warning);
+}
+
+.banner--info {
+  background: var(--info-soft);
+  border-color: var(--info-border);
+  color: var(--info);
+}
+
+/* --- FORMULARIOS --- */
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: var(--space-3);
+}
+
+.form-group label {
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--text-2);
+}
+
+.input-dark {
+  background-color: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  color: var(--text);
+  font-size: var(--fs-base);
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+  font-family: inherit;
+  min-height: 40px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.input-dark:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-soft);
+}
+
+.input-dark::placeholder {
+  color: var(--text-3);
+}
+
+/* --- BOTONES --- */
+.btn-primary {
+  background-color: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 10px 18px;
+  font-size: var(--fs-base);
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  width: 100%;
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: background-color 0.15s ease;
+}
+
+.btn-primary:hover {
+  background-color: var(--primary-hover);
+}
+
+.btn-primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background: var(--surface);
+  color: var(--text-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 10px 16px;
+  font-size: var(--fs-base);
+  font-family: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.btn-secondary:hover {
+  background: var(--surface-2);
+  border-color: var(--text-3);
+}
+
+/* --- BOTONES DE ACCIÓN EN TABLAS --- */
+.action-btn {
+  border: 1px solid transparent;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  font-family: inherit;
+  white-space: nowrap;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+/* Acciones afirmativas: azul de acción (el verde queda para ESTADOS) */
+.btn-approve {
+  background-color: var(--primary-soft);
+  color: var(--primary);
+  border-color: var(--primary-border);
+}
+
+.btn-approve:hover {
+  background-color: var(--primary);
+  color: #fff;
+}
+
+/* Acciones destructivas / de rechazo: rojo (semántica correcta) */
+.btn-reject {
+  background-color: var(--danger-soft);
+  color: var(--danger);
+  border-color: var(--danger-border);
+}
+
+.btn-reject:hover {
+  background-color: var(--danger);
+  color: #fff;
+}
+
+/* --- TABLAS --- */
+.table-container {
+  overflow-x: auto;
+}
+
+.rrhh-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-base);
+}
+
+.rrhh-table th {
+  text-align: left;
+  padding: 10px 14px;
+  color: var(--text-3);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 11px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+  position: sticky;
+  top: 0;
+}
+
+.rrhh-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  vertical-align: middle;
+}
+
+.rrhh-table tr:last-child td {
+  border-bottom: none;
+}
+
+.rrhh-table tbody tr:hover {
+  background-color: var(--surface-2);
+}
+
+/* --- BADGES DE ESTADO (texto + color, nunca solo color) --- */
+.badge {
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.badge-pendiente {
+  background-color: var(--warning-soft);
+  color: var(--warning);
+  border-color: var(--warning-border);
+}
+
+.badge-aprobada {
+  background-color: var(--success-soft);
+  color: var(--success);
+  border-color: var(--success-border);
+}
+
+.badge-rechazada {
+  background-color: var(--danger-soft);
+  color: var(--danger);
+  border-color: var(--danger-border);
+}
+
+.badge-neutra {
+  background-color: var(--surface-2);
+  color: var(--text-2);
+  border-color: var(--border);
+}
+
+/* --- PILLS (contadores en cabeceras) --- */
+.pill {
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border);
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-2);
+  background: var(--surface);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pill strong {
+  color: var(--text);
+}
+
+.pill--blue {
+  border-color: var(--info-border);
+  color: var(--info);
+  background: var(--info-soft);
+}
+.pill--blue strong {
+  color: var(--info);
+}
+
+.pill--green {
+  border-color: var(--success-border);
+  color: var(--success);
+  background: var(--success-soft);
+}
+.pill--green strong {
+  color: var(--success);
+}
+
+.pill--amber {
+  border-color: var(--warning-border);
+  color: var(--warning);
+  background: var(--warning-soft);
+}
+.pill--amber strong {
+  color: var(--warning);
+}
+
+.pill--red {
+  border-color: var(--danger-border);
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+.pill--red strong {
+  color: var(--danger);
+}
+
+/* --- ESTADO VACÍO --- */
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-3);
+}
+
+.empty-state__icon {
+  color: var(--border-strong);
+  margin-bottom: 8px;
+}
+
+.empty-state__title {
+  font-weight: 600;
+  color: var(--text-2);
+  margin-bottom: 4px;
+}
+
+.empty-state__desc {
+  font-size: var(--fs-sm);
+}
+
+/* --- HISTORIAL ITEMS --- */
+.history-item {
+  background-color: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  margin-bottom: var(--space-2);
+}
+
+/* --- CALENDARIO (react-calendar, tema claro) --- */
+.react-calendar {
+  background-color: transparent !important;
+  border: none !important;
+  width: 100% !important;
+  font-family: inherit;
+}
+
+.react-calendar__navigation button {
+  color: var(--text) !important;
+  font-size: var(--fs-md);
+  font-weight: 600;
+}
+
+.react-calendar__navigation button:enabled:hover {
+  background-color: var(--primary-soft) !important;
+  border-radius: var(--radius-sm);
+}
+
+.react-calendar__month-view__weekdays {
+  color: var(--text-3) !important;
+  font-size: 11px;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.react-calendar__month-view__weekdays abbr {
+  text-decoration: none;
+}
+
+.react-calendar__tile {
+  color: var(--text) !important;
+  background: var(--surface-2) !important;
+  margin: 2px 0;
+  border-radius: var(--radius-sm);
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+}
+
+.react-calendar__tile:enabled:hover {
+  background-color: var(--primary-soft) !important;
+}
+
+.react-calendar__tile--now {
+  background: var(--primary-soft) !important;
+  color: var(--primary) !important;
+  border: 1px solid var(--primary-border) !important;
+  font-weight: 700;
+}
+
+/* Días con ausencia aprobada */
+.dia-aprobado {
+  background-color: var(--success) !important;
+  color: #ffffff !important;
+  font-weight: 700;
+}
+
+.calendar-names {
+  font-size: 10px;
+  color: var(--danger);
+  margin-top: 2px;
+  line-height: 1.1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+/* --- COMPATIBILIDAD --- */
+.page-container--blue {
+  background: transparent;
+  min-height: 100vh;
+}
+
+/* --- FOTOS DE PROGRESO (pedidos) --- */
+.fotos-pedido {
+  border-top: 1px dashed var(--border);
+  margin-top: 12px;
+  padding-top: 10px;
+}
+
+.fotos-pedido__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.fotos-pedido__titulo {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.fotos-pedido__contador {
+  font-weight: 500;
+  color: var(--text-3);
+}
+
+.fotos-pedido__vacio {
+  margin: 4px 0 0;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+
+.fotos-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 8px;
+}
+
+.foto-thumb {
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--surface-2);
+}
+
+.foto-thumb img {
+  display: block;
+  width: 100%;
+  height: 84px;
+  object-fit: cover;
+}
+
+.foto-thumb__pie {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 3px 6px;
+  font-size: 10px;
+  color: var(--text-3);
+}
+
+.foto-thumb__borrar {
+  border: none;
+  background: transparent;
+  color: var(--danger);
+  cursor: pointer;
+  padding: 2px;
+  display: inline-flex;
+  border-radius: 4px;
+}
+
+.foto-thumb__borrar:hover {
+  background: var(--danger-soft);
+}

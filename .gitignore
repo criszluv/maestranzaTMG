@@ -1,0 +1,30 @@
+# DEPENDENCIAS (cubre raiz y subcarpetas)
+node_modules/
+.venv/
+venv/
+
+# BUILDS / ARTEFACTOS
+dist/
+build/
+__pycache__/
+*.py[cod]
+
+# FRONTEND (Vite + React)
+frontend/node_modules
+frontend/dist
+
+# BACKEND (Python + FastAPI)
+backend/.venv
+
+# ARCHIVOS DE ENTORNO / SECRETOS (nunca subir credenciales reales)
+.env
+*.env
+.env.*
+frontend/.env.local
+# La plantilla SIN secretos si se versiona:
+!backend/.env.example
+
+# SISTEMA / EDITOR
+.DS_Store
+Thumbs.db
+*.log

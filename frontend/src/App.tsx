@@ -1,0 +1,215 @@
+// src/App.tsx
+// Enrutado de la SPA. Las vistas viven en features/<módulo>/ (dominio):
+//   auth · usuarios · solicitudes (días libres) · asistencia (marcaje
+//   vía Workera) · pedidos · sensores (IoT + reportería)
+import type { ReactNode, FC } from 'react'
+import { Routes, Route, Navigate } from 'react-router-dom'
+
+// Vistas por módulo
+import Login from './features/auth/Login'
+import DashboardSensores from './features/sensores/DashboardSensores'
+import MisSolicitudes from './features/solicitudes/MisSolicitudes'
+import GestionSolicitudesRRHH from './features/solicitudes/GestionSolicitudesRRHH'
+import SolicitudesAdmin from './features/solicitudes/SolicitudesAdmin'
+import GestionUsuariosAdmin from './features/usuarios/GestionUsuariosAdmin'
+import GestionUsuariosRRHH from './features/usuarios/GestionUsuariosRRHH'
+import HistorialAsistencia from './features/asistencia/HistorialAsistencia'
+import MiPrivacidad from './features/privacidad/MiPrivacidad'
+import GestionPedidos from './features/pedidos/GestionPedidos'
+import MisPedidosEmpleado from './features/pedidos/MisPedidosEmpleado'
+import Auditoria from './features/auditoria/Auditoria'
+
+// Navegación principal
+import Sidebar from './components/layout/Sidebar'
+
+// Contexto de autenticación
+import { AuthProvider, useAuth } from './features/auth/AuthContext'
+
+// UI compartida: reemplazan alert()/confirm() nativos del navegador
+import { ConfirmProvider } from './components/common/ConfirmDialog'
+import { ToastProvider } from './components/common/Toast'
+
+// Tipamos el rol igual que en el backend/usuario
+type Rol = 'admin' | 'rrhh' | 'empleado'
+
+interface ProtectedRouteProps {
+  children: ReactNode
+  rolRequerido?: Rol
+}
+
+/**
+ * Segunda línea de defensa para la UX: la AUTORIZACIÓN real está en el
+ * backend (JWT + require_roles); esto solo evita mostrar pantallas que el
+ * usuario no podría usar.
+ */
+const ProtectedRoute: FC<ProtectedRouteProps> = ({ children, rolRequerido }) => {
+  const { user } = useAuth()
+
+  // 1. Si no hay usuario, lo botamos al login
+  if (!user) {
+    return <Navigate to="/" replace />
+  }
+
+  // 2. Si hay rol requerido y el usuario no lo cumple (y no es admin), va al dashboard
+  if (rolRequerido && user.rol !== rolRequerido && user.rol !== 'admin') {
+    return <Navigate to="/dashboard" replace />
+  }
+
+  // 3. Usuario autenticado y autorizado -> renderizamos la vista
+  return <>{children}</>
+}
+
+export default function App() {
+  return (
+    <ToastProvider>
+      <ConfirmProvider>
+        <AuthProvider>
+          <div className="app-shell">
+            {/* La Sidebar decide internamente qué mostrar según el rol */}
+            <Sidebar />
+
+            <main className="app-main">
+              <Routes>
+              {/* Login (ruta pública) */}
+              <Route path="/" element={<Login />} />
+
+              {/* Dashboard común (sensores IoT) */}
+              <Route
+                path="/dashboard"
+                element={
+                  <ProtectedRoute>
+                    <DashboardSensores />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Privacidad (Ley 21.719): todos los roles autenticados */}
+              <Route
+                path="/privacidad"
+                element={
+                  <ProtectedRoute>
+                    <MiPrivacidad />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Rutas Empleado */}
+              <Route
+                path="/empleado/mis-solicitudes"
+                element={
+                  <ProtectedRoute rolRequerido="empleado">
+                    <MisSolicitudes />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/empleado/mis-pedidos"
+                element={
+                  <ProtectedRoute rolRequerido="empleado">
+                    <MisPedidosEmpleado />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Rutas RRHH */}
+              <Route
+                path="/rrhh/gestion"
+                element={
+                  <ProtectedRoute rolRequerido="rrhh">
+                    <GestionSolicitudesRRHH />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/rrhh/mis-solicitudes"
+                element={
+                  <ProtectedRoute rolRequerido="rrhh">
+                    <MisSolicitudes />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/rrhh/auditoria"
+                element={
+                  <ProtectedRoute rolRequerido="rrhh">
+                    <Auditoria />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/rrhh/usuarios"
+                element={
+                  <ProtectedRoute rolRequerido="rrhh">
+                    <GestionUsuariosRRHH />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/rrhh/asistencia"
+                element={
+                  <ProtectedRoute rolRequerido="rrhh">
+                    <HistorialAsistencia />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/rrhh/pedidos"
+                element={
+                  <ProtectedRoute rolRequerido="rrhh">
+                    <GestionPedidos />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Rutas Admin */}
+              <Route
+                path="/admin/usuarios"
+                element={
+                  <ProtectedRoute rolRequerido="admin">
+                    <GestionUsuariosAdmin />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/solicitudes"
+                element={
+                  <ProtectedRoute rolRequerido="admin">
+                    <SolicitudesAdmin />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/asistencia"
+                element={
+                  <ProtectedRoute rolRequerido="admin">
+                    <HistorialAsistencia />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/pedidos"
+                element={
+                  <ProtectedRoute rolRequerido="admin">
+                    <GestionPedidos />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/auditoria"
+                element={
+                  <ProtectedRoute rolRequerido="admin">
+                    <Auditoria />
+                  </ProtectedRoute>
+                }
+              />
+
+                {/* Fallback 404 -> redirige al login */}
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </main>
+          </div>
+        </AuthProvider>
+      </ConfirmProvider>
+    </ToastProvider>
+  )
+}

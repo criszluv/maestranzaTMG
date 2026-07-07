@@ -1,0 +1,12 @@
+# Dependencias SOLO para desarrollo y tests.
+# Instalar: pip install -r requirements-dev.txt
+
+-r requirements.txt
+
+# Cliente HTTP que usa fastapi.testclient (tests/)
+httpx==0.28.1
+
+# SAST: auditoría estática de seguridad del código (ejecutar desde backend/:
+#   python -m bandit -r app -q
+# no debe reportar issues High/Medium).
+bandit==1.9.4

@@ -1,0 +1,24 @@
+# Dependencias DIRECTAS del backend (las transitivas las resuelve pip).
+# Instalar: pip install -r requirements.txt
+
+fastapi==0.124.0
+uvicorn[standard]==0.38.0
+
+# Base de datos (Supabase / PostgreSQL)
+SQLAlchemy==2.0.44
+psycopg2-binary==2.9.11
+
+# Validación
+pydantic==2.12.5
+email-validator==2.3.0
+
+# Seguridad (hash de contraseñas + JWT)
+bcrypt==4.2.1
+PyJWT==2.10.1
+
+# Subida de archivos multipart (fotos de pedidos)
+python-multipart==0.0.20
+
+# Configuración e integraciones (API Workera / Supabase Storage)
+python-dotenv==1.2.1
+requests==2.32.5
