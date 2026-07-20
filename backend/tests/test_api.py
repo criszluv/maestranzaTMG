@@ -455,6 +455,190 @@ def run():
     check("CSV neutraliza fórmula con apóstrofo", "'=SUM(A1:A9)" in csv_texto)
     check("CSV no deja la fórmula sin neutralizar", ",=SUM(A1:A9)" not in csv_texto)
 
+    # 23b) CLIENTES: CRUD con contactos/entidades anidados (solo RRHH/Admin)
+    check("clientes: empleado -> 403", client.get("/api/clientes", headers=_auth(emp_token)).status_code == 403)
+    check("clientes: sin token -> 401", client.get("/api/clientes").status_code == 401)
+
+    cliente_nuevo = {
+        "nombre": "AGRICOLA DE PRUEBA LTDA",
+        "email": "prueba@agricola.cl",
+        "fecha_ingreso": "2026-01-15",
+        "contactos": [
+            {"nombre": "Juan Pagos", "telefono": "987654321", "nota": "pagos"},
+            {"nombre": "Ana Terreno", "telefono": "+56 9 1234-5678"},
+        ],
+        "entidades": [{"rut": "76.358.680-4", "nombre": "Matriz"}],
+    }
+    r = client.post("/api/clientes", json=cliente_nuevo, headers=_auth(rrhh_token))
+    cli = r.json() if r.status_code == 201 else {}
+    check("clientes: rrhh crea -> 201", r.status_code == 201)
+    check("clientes: contactos anidados guardados", len(cli.get("contactos", [])) == 2)
+    check("clientes: RUT normalizado", cli.get("entidades", [{}])[0].get("rut") == "76.358.680-4")
+
+    check("clientes: RUT sin puntos se normaliza", client.post(
+        "/api/clientes",
+        json={"nombre": "CLIENTE RUT PLANO", "entidades": [{"rut": "76358680-4"}]},
+        headers=_auth(rrhh_token),
+    ).json().get("entidades", [{}])[0].get("rut") == "76.358.680-4")
+
+    check("clientes: RUT con DV malo -> 422", client.post(
+        "/api/clientes",
+        json={"nombre": "CLIENTE RUT MALO", "entidades": [{"rut": "76.358.680-5"}]},
+        headers=_auth(rrhh_token),
+    ).status_code == 422)
+    check("clientes: teléfono inválido -> 422", client.post(
+        "/api/clientes",
+        json={"nombre": "CLIENTE TEL MALO", "contactos": [{"telefono": "no-es-fono!"}]},
+        headers=_auth(rrhh_token),
+    ).status_code == 422)
+    check("clientes: nombre duplicado -> 409", client.post(
+        "/api/clientes",
+        json={"nombre": "agricola de prueba ltda"},
+        headers=_auth(rrhh_token),
+    ).status_code == 409)
+
+    r = client.get("/api/clientes?buscar=76.358.680", headers=_auth(rrhh_token))
+    check("clientes: buscar por RUT encuentra", r.status_code == 200 and any(
+        c["nombre"] == "AGRICOLA DE PRUEBA LTDA" for c in r.json()
+    ))
+
+    r = client.put(
+        f"/api/clientes/{cli['id']}",
+        json={"contactos": [{"nombre": "Solo Uno", "telefono": "911112222"}]},
+        headers=_auth(rrhh_token),
+    )
+    check("clientes: editar reemplaza contactos", r.status_code == 200 and len(r.json()["contactos"]) == 1)
+
+    check("clientes: deshabilitar -> 200", client.post(
+        f"/api/clientes/{cli['id']}/deshabilitar", headers=_auth(rrhh_token)
+    ).status_code == 200)
+    check("clientes: deshabilitado fuera del resumen", all(
+        c["id"] != cli["id"]
+        for c in client.get("/api/clientes/resumen", headers=_auth(rrhh_token)).json()
+    ))
+    client.post(f"/api/clientes/{cli['id']}/habilitar", headers=_auth(rrhh_token))
+
+    # 23c) TRABAJOS: registro por cliente (solo RRHH/Admin; DELETE solo admin)
+    check("trabajos: empleado -> 403", client.get("/api/trabajos", headers=_auth(emp_token)).status_code == 403)
+
+    trabajo_nuevo = {
+        "cliente_id": cli["id"],
+        "fecha": "2026-07-01",
+        "hora": "10:30:00",
+        "valor": 48000,
+        "detalle": "Soldar oreja a tiro de carro",
+    }
+    r = client.post("/api/trabajos", json=trabajo_nuevo, headers=_auth(rrhh_token))
+    tra = r.json() if r.status_code == 201 else {}
+    check("trabajos: rrhh crea -> 201", r.status_code == 201)
+    check("trabajos: trae nombre del cliente", tra.get("cliente_nombre") == "AGRICOLA DE PRUEBA LTDA")
+    check("trabajos: cliente inexistente -> 404", client.post(
+        "/api/trabajos",
+        json={**trabajo_nuevo, "cliente_id": 999999},
+        headers=_auth(rrhh_token),
+    ).status_code == 404)
+    check("trabajos: valor negativo -> 422", client.post(
+        "/api/trabajos",
+        json={**trabajo_nuevo, "valor": -5},
+        headers=_auth(rrhh_token),
+    ).status_code == 422)
+
+    r = client.get(f"/api/trabajos?cliente_id={cli['id']}", headers=_auth(rrhh_token))
+    check("trabajos: filtro por cliente", r.status_code == 200 and len(r.json()) == 1)
+    r = client.get("/api/trabajos?buscar=oreja", headers=_auth(rrhh_token))
+    check("trabajos: búsqueda por detalle", r.status_code == 200 and len(r.json()) == 1)
+
+    r = client.put(
+        f"/api/trabajos/{tra['id']}",
+        json={"estado": "En proceso", "valor": 50000},
+        headers=_auth(rrhh_token),
+    )
+    check("trabajos: editar -> 200", r.status_code == 200 and r.json()["valor"] == 50000)
+
+    check("trabajos: rrhh NO elimina -> 403", client.delete(
+        f"/api/trabajos/{tra['id']}", headers=_auth(rrhh_token)
+    ).status_code == 403)
+    check("trabajos: admin elimina -> 204", client.delete(
+        f"/api/trabajos/{tra['id']}", headers=_auth(admin_token)
+    ).status_code == 204)
+
+    # 23d) FACTURAS (pagos pendientes): híbrido cliente_id/cliente_texto
+    check("facturas: empleado -> 403", client.get("/api/facturas", headers=_auth(emp_token)).status_code == 403)
+    check("facturas: sin token -> 401", client.get("/api/facturas").status_code == 401)
+
+    # Sin cliente_id NI texto -> 422 (regla del híbrido)
+    check("facturas: sin cliente ni texto -> 422", client.post(
+        "/api/facturas", json={"numero": 100, "monto": 5000},
+        headers=_auth(rrhh_token),
+    ).status_code == 422)
+
+    # Solo texto libre (cliente que no está en la cartera) -> 201 sin vínculo
+    r = client.post(
+        "/api/facturas",
+        json={"cliente_texto": "COPEVAL", "numero": 1932, "monto": 77350, "fecha_emision": "2025-01-07"},
+        headers=_auth(rrhh_token),
+    )
+    fac_libre = r.json() if r.status_code == 201 else {}
+    check("facturas: solo texto -> 201", r.status_code == 201)
+    check("facturas: sin vínculo queda cliente_id null", fac_libre.get("cliente_id") is None)
+
+    # Vinculada a cliente real: hereda el nombre como texto
+    r = client.post(
+        "/api/facturas",
+        json={"cliente_id": cli["id"], "numero": 2000, "monto": 130900, "fecha_emision": "2026-06-01"},
+        headers=_auth(rrhh_token),
+    )
+    fac_vinc = r.json() if r.status_code == 201 else {}
+    check("facturas: vinculada -> 201 con nombre", fac_vinc.get("cliente_nombre") == "AGRICOLA DE PRUEBA LTDA")
+    check("facturas: texto heredado del cliente", fac_vinc.get("cliente_texto") == "AGRICOLA DE PRUEBA LTDA")
+    check("facturas: cliente inexistente -> 404", client.post(
+        "/api/facturas", json={"cliente_id": 999999, "monto": 100},
+        headers=_auth(rrhh_token),
+    ).status_code == 404)
+    check("facturas: monto negativo -> 422", client.post(
+        "/api/facturas", json={"cliente_texto": "X", "monto": -1},
+        headers=_auth(rrhh_token),
+    ).status_code == 422)
+
+    # Filtros: solo_sin_vincular y búsqueda por número
+    r = client.get("/api/facturas?solo_sin_vincular=true", headers=_auth(rrhh_token))
+    check("facturas: filtro sin vincular", r.status_code == 200 and all(
+        f["cliente_id"] is None for f in r.json()
+    ) and len(r.json()) >= 1)
+    r = client.get("/api/facturas?buscar=1932", headers=_auth(rrhh_token))
+    check("facturas: búsqueda por número", r.status_code == 200 and any(
+        f["numero"] == 1932 for f in r.json()
+    ))
+
+    # Vincular después (PUT) la factura de texto libre al cliente real
+    r = client.put(
+        f"/api/facturas/{fac_libre['id']}",
+        json={"cliente_id": cli["id"]},
+        headers=_auth(rrhh_token),
+    )
+    check("facturas: vincular después -> 200", r.status_code == 200 and r.json()["cliente_nombre"] == "AGRICOLA DE PRUEBA LTDA")
+    check("facturas: texto original se conserva", r.json()["cliente_texto"] == "COPEVAL")
+
+    # Pagar / reabrir
+    r = client.post(f"/api/facturas/{fac_vinc['id']}/pagar", headers=_auth(rrhh_token))
+    check("facturas: pagar -> 200 con fecha", r.status_code == 200 and r.json()["estado"] == "pagada" and r.json()["pagada_en"] is not None)
+    check("facturas: pagar dos veces -> 409", client.post(
+        f"/api/facturas/{fac_vinc['id']}/pagar", headers=_auth(rrhh_token)
+    ).status_code == 409)
+    r = client.get("/api/facturas?estado=pendiente", headers=_auth(rrhh_token))
+    check("facturas: pagada sale de pendientes", all(f["id"] != fac_vinc["id"] for f in r.json()))
+    r = client.post(f"/api/facturas/{fac_vinc['id']}/reabrir", headers=_auth(rrhh_token))
+    check("facturas: reabrir -> 200 pendiente", r.status_code == 200 and r.json()["estado"] == "pendiente" and r.json()["pagada_en"] is None)
+
+    # Eliminar: solo admin
+    check("facturas: rrhh NO elimina -> 403", client.delete(
+        f"/api/facturas/{fac_libre['id']}", headers=_auth(rrhh_token)
+    ).status_code == 403)
+    check("facturas: admin elimina -> 204", client.delete(
+        f"/api/facturas/{fac_libre['id']}", headers=_auth(admin_token)
+    ).status_code == 204)
+    client.delete(f"/api/facturas/{fac_vinc['id']}", headers=_auth(admin_token))
+
     # 24) Visor de auditoría. En SQLite no hay triggers, así que insertamos una
     #     fila directa para verificar lectura, filtro y guardas de rol.
     from datetime import datetime, timezone

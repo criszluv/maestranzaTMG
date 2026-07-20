@@ -11,16 +11,22 @@ from app.routers import (
     asistencia,
     auditoria,
     auth,
+    clientes,
+    facturas,
     iot,
     pedidos,
     privacidad,
     solicitudes,
+    trabajos,
     usuarios,
 )
 
 api_router = APIRouter()
 
-for modulo in (auth, usuarios, solicitudes, asistencia, pedidos, iot, privacidad, auditoria):
+for modulo in (
+    auth, usuarios, solicitudes, asistencia, pedidos, iot, privacidad,
+    auditoria, clientes, trabajos, facturas,
+):
     api_router.include_router(modulo.router)
 
 __all__ = ["api_router"]

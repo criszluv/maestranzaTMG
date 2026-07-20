@@ -18,6 +18,9 @@ import MiPrivacidad from './features/privacidad/MiPrivacidad'
 import GestionPedidos from './features/pedidos/GestionPedidos'
 import MisPedidosEmpleado from './features/pedidos/MisPedidosEmpleado'
 import Auditoria from './features/auditoria/Auditoria'
+import GestionClientes from './features/clientes/GestionClientes'
+import GestionTrabajos from './features/trabajos/GestionTrabajos'
+import PagosPendientes from './features/facturas/PagosPendientes'
 
 // Navegación principal
 import Sidebar from './components/layout/Sidebar'
@@ -137,6 +140,30 @@ export default function App() {
                 }
               />
               <Route
+                path="/rrhh/clientes"
+                element={
+                  <ProtectedRoute rolRequerido="rrhh">
+                    <GestionClientes />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/rrhh/trabajos"
+                element={
+                  <ProtectedRoute rolRequerido="rrhh">
+                    <GestionTrabajos />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/rrhh/pagos"
+                element={
+                  <ProtectedRoute rolRequerido="rrhh">
+                    <PagosPendientes />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
                 path="/rrhh/usuarios"
                 element={
                   <ProtectedRoute rolRequerido="rrhh">
@@ -199,6 +226,30 @@ export default function App() {
                 element={
                   <ProtectedRoute rolRequerido="admin">
                     <Auditoria />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/clientes"
+                element={
+                  <ProtectedRoute rolRequerido="admin">
+                    <GestionClientes />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/trabajos"
+                element={
+                  <ProtectedRoute rolRequerido="admin">
+                    <GestionTrabajos />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/pagos"
+                element={
+                  <ProtectedRoute rolRequerido="admin">
+                    <PagosPendientes />
                   </ProtectedRoute>
                 }
               />

@@ -1,0 +1,67 @@
+{
+  "expo": {
+    "name": "MaestranzaTMG",
+    "slug": "maestranza-tmg",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "maestranzatmg",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "bundleIdentifier": "cl.maestranzatmg.portal",
+      "icon": "./assets/expo.icon",
+      "infoPlist": {
+        "NSCameraUsageDescription": "La cámara se usa para subir fotos de avance de los pedidos y documentos de respaldo de solicitudes.",
+        "NSPhotoLibraryUsageDescription": "La galería se usa para adjuntar fotos de avance y documentos de respaldo."
+      }
+    },
+    "android": {
+      "package": "cl.maestranzatmg.portal",
+      "adaptiveIcon": {
+        "backgroundColor": "#0f172a",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "usesCleartextTraffic": true,
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#0f172a",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 76
+        }
+      ],
+      "expo-secure-store",
+      "expo-sharing",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "La galería se usa para adjuntar fotos de avance y documentos de respaldo.",
+          "cameraPermission": "La cámara se usa para subir fotos de avance de los pedidos y documentos de respaldo de solicitudes."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "92e8fefa-5e42-4036-b6cb-b23e98af83bf"
+      }
+    }
+  }
+}

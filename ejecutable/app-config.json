@@ -1,0 +1,4 @@
+{
+  "_comentario": "URL del Portal MaestranzaTMG hospedado. Tras instalar, este archivo queda en la carpeta 'resources' junto al ejecutable y un administrador puede editarlo sin recompilar. La app SOLO navega dentro de este dominio.",
+  "appUrl": "https://portal.maestranzatmg.cl"
+}

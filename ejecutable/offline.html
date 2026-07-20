@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <!-- Página local de respaldo cuando el portal en la nube no responde.
+       CSP estricta: sin red, sin scripts externos, solo el inline propio. -->
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'" />
+  <title>MaestranzaTMG — Sin conexión</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { margin: 0; box-sizing: border-box; }
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #0f172a;
+      color: #cbd5e1;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      text-align: center;
+      padding: 24px;
+    }
+    .logo {
+      width: 64px; height: 64px;
+      border-radius: 12px;
+      background: #b91c1c;
+      color: #fff;
+      font-weight: 800;
+      font-size: 20px;
+      letter-spacing: 1px;
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 16px;
+    }
+    h1 { color: #fff; font-size: 22px; margin-bottom: 8px; }
+    p  { font-size: 14px; line-height: 1.5; max-width: 420px; margin: 0 auto 24px; }
+    button {
+      background: #1d4ed8;
+      color: #fff;
+      border: 0;
+      border-radius: 999px;
+      padding: 12px 28px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    button:hover { background: #1e40af; }
+    .estado { margin-top: 16px; font-size: 12px; color: #64748b; }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="logo" aria-hidden="true">TMG</div>
+    <h1>No se pudo conectar con el portal</h1>
+    <p>
+      Revisa tu conexión a internet. Si el problema continúa, avisa al
+      administrador del sistema. Reintentaremos automáticamente.
+    </p>
+    <button id="reintentar" type="button">Reintentar ahora</button>
+    <div class="estado" id="estado"></div>
+  </main>
+  <script>
+    'use strict'
+    // El shell pasa la URL del portal por query string; validamos que sea
+    // http(s) antes de navegar (nunca se navega a un esquema arbitrario).
+    var destino = new URLSearchParams(location.search).get('destino') || ''
+    var esValida = /^https?:\/\//i.test(destino)
+
+    function volverAlPortal() {
+      if (esValida) location.href = destino
+    }
+
+    document.getElementById('reintentar').addEventListener('click', volverAlPortal)
+
+    // Reintento automático cada 15 s con contador visible.
+    var SEGUNDOS = 15
+    var restantes = SEGUNDOS
+    var estado = document.getElementById('estado')
+    setInterval(function () {
+      restantes -= 1
+      if (restantes <= 0) {
+        estado.textContent = 'Reintentando…'
+        volverAlPortal()
+        restantes = SEGUNDOS
+        return
+      }
+      estado.textContent = 'Reintento automático en ' + restantes + ' s'
+    }, 1000)
+  </script>
+</body>
+</html>

@@ -9,6 +9,13 @@ build/
 __pycache__/
 *.py[cod]
 
+# EJECUTABLE (Electron): se ignora node_modules/ y dist/ (via reglas de arriba),
+# pero el icono y su script generador SI deben versionarse para poder recompilar.
+!ejecutable/build/
+ejecutable/build/*
+!ejecutable/build/icon.ico
+!ejecutable/build/generar-icono.ps1
+
 # FRONTEND (Vite + React)
 frontend/node_modules
 frontend/dist
@@ -21,8 +28,9 @@ backend/.venv
 *.env
 .env.*
 frontend/.env.local
-# La plantilla SIN secretos si se versiona:
+# Las plantillas SIN secretos si se versionan:
 !backend/.env.example
+!**/.env.example
 
 # SISTEMA / EDITOR
 .DS_Store

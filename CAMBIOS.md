@@ -5,6 +5,70 @@ arquitectura y puesta en marcha vive en el [README](README.md).
 
 ---
 
+## Revisión 12 — Pagos pendientes (facturas por cobrar, migración de datos)
+
+El Excel "MAESTRANZA TMG (1).xlsx" (hoja Facturas pendientes, 233 facturas por
+$87.179.882) se migró a Supabase con un **diseño híbrido** que resuelve el
+problema de los nombres informales:
+
+- **`cliente_texto` siempre conserva el nombre tal como se digitó** (sin
+  pérdida de información) y **`cliente_id` es un vínculo opcional** al cliente
+  real de la cartera. En la carga solo se auto-vinculó lo inequívoco: igualdad
+  normalizada o mismo set de palabras con match único ("MATHIS EPPLE" →
+  "EPPLE, MATHIS") = **60/233**; el resto (COPEVAL, MANUKA, HAIK…) quedó "sin
+  vincular" y se vincula con un clic al editar. **No se adivinó ningún match
+  ambiguo** (son datos de dinero).
+- **Fechas ilegibles NO se adivinaron**: 4 fechas rotas del Excel ('5-52025',
+  '14-20-2025'…) quedaron NULL con el texto original preservado en `nota`,
+  visible con ⚠ en la app para corregirlas a mano.
+- **Esquema** (migración `008`, aplicada): tabla `facturas` con estado
+  pendiente/pagada, RLS deny-by-default, auditoría con actor y retención:
+  pagadas se depuran a los **6 años desde el pago** (art. 17 C. Tributario);
+  pendientes no caducan (cobranza activa).
+- **Backend** (`/api/facturas`, solo RRHH/Admin): filtros (estado, cliente,
+  texto/N°, solo sin vincular), crear/editar, **marcar pagada / reabrir**
+  (con guardas 409), eliminar **solo admin** (auditado). Regla del híbrido
+  validada: toda factura exige cliente vinculado o nombre escrito.
+- **Frontend**: módulo *Pagos pendientes* — más antiguas primero (prioridad de
+  cobranza), **antigüedad con semáforo** (≤30 verde / 31–60 ámbar / >60 rojo),
+  totales por cobrar y contador +60 días, checkbox "solo sin vincular",
+  modal de registro/edición con selector de cartera + nombre escrito.
+- Tests: 152/152 e2e (19 nuevos). Verificado EN VIVO: 233 pendientes,
+  $87.179.882 por cobrar y 185 facturas +60 días renderizando en la app.
+
+---
+
+## Revisión 11 — Módulos de Clientes y Trabajos (migración de datos reales)
+
+Los Excel de la empresa (`clientes_habilitados` y `ultimos_trabajos`) se
+migraron a Supabase con diseño **normalizado (3NF)** — la planilla violaba 1NF
+(hasta 3 teléfonos y 2 RUT por celda):
+
+- **Esquema** (migraciones `006`/`007`, aplicadas): `clientes` (nombre único
+  case-insensitive, email, ingreso, estado habilitado/deshabilitado),
+  `cliente_contactos` (1:N, con `nota` extraída de los paréntesis, ej. "pagos"),
+  `cliente_entidades` (1:N RUT de facturación) y `trabajos` (FK real a
+  clientes, fecha/hora, estado, valor CLP, detalle). RLS deny-by-default,
+  auditoría con actor en las 4 tablas, retención de trabajos a **6 años**
+  integrada en `fn_depurar_retencion`.
+- **Datos migrados y verificados**: 113 clientes (1 duplicado fusionado
+  conservando la fecha más antigua), 119 contactos, 103 entidades y 55
+  trabajos; los 15 clientes de los trabajos calzaron 1:1 por nombre (FK real,
+  sin tabla puente). Todos los RUT pasaron el dígito verificador.
+- **Backend** (`/api/clientes`, `/api/trabajos`, solo RRHH/Admin): búsqueda por
+  nombre/RUT/contacto/teléfono, creación con contactos y entidades anidados,
+  edición con reemplazo de sets (solo si cambian: sin ruido en auditoría),
+  baja lógica de clientes. **RUT validado con módulo 11** y normalizado
+  (`services/rut.py`); teléfonos con patrón estricto. Eliminar trabajos es
+  **solo admin** (auditado).
+- **Frontend**: módulos *Clientes* y *Trabajos* para RRHH y Admin — tabla con
+  búsqueda con debounce, modales de crear/editar (contactos y RUT como listas
+  dinámicas), filtros por cliente/texto/fechas y suma total CLP del filtro.
+- Tests: 133/133 e2e (23 nuevos). Verificado además EN VIVO contra Supabase:
+  113 clientes y 55 trabajos ($7.246.000) renderizando en la app.
+
+---
+
 ## Revisión 10 — Saldos por trabajador, edición en modal y visor de auditoría
 
 - **Saldos de vacaciones por trabajador** (RRHH/Admin): nuevo apartado en la

@@ -1,0 +1,54 @@
+{
+  "name": "maestranzatmg-desktop",
+  "productName": "MaestranzaTMG",
+  "version": "1.0.0",
+  "description": "Cliente de escritorio del Portal MaestranzaTMG (carga el portal hospedado en la nube).",
+  "main": "main.js",
+  "author": "Maestranza TMG",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win",
+    "dist:portable": "electron-builder --win portable"
+  },
+  "devDependencies": {
+    "electron": "^38.2.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "cl.maestranzatmg.portal",
+    "productName": "MaestranzaTMG",
+    "copyright": "© Maestranza TMG",
+    "files": [
+      "main.js",
+      "offline.html",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "app-config.json",
+        "to": "app-config.json"
+      }
+    ],
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ],
+      "icon": "build/icon.ico",
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false,
+      "shortcutName": "MaestranzaTMG",
+      "artifactName": "${productName}-Instalador-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "${productName}-Portable-${version}.${ext}"
+    }
+  }
+}

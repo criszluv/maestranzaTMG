@@ -12,12 +12,21 @@ const TABLAS: { valor: string; label: string }[] = [
   { valor: 'users', label: 'Usuarios' },
   { valor: 'rrhh_solicitudes', label: 'Solicitudes' },
   { valor: 'pedido', label: 'Pedidos' },
+  { valor: 'clientes', label: 'Clientes' },
+  { valor: 'cliente_contactos', label: 'Contactos de clientes' },
+  { valor: 'trabajos', label: 'Trabajos' },
+  { valor: 'facturas', label: 'Pagos pendientes' },
 ]
 
 const LABEL_TABLA: Record<string, string> = {
   users: 'Usuario',
   rrhh_solicitudes: 'Solicitud',
   pedido: 'Pedido',
+  clientes: 'Cliente',
+  cliente_contactos: 'Contacto de cliente',
+  cliente_entidades: 'RUT de cliente',
+  trabajos: 'Trabajo',
+  facturas: 'Factura',
 }
 
 /** "12|ana@tmg.cl" -> "ana@tmg.cl"; null -> "Sistema / BD". */

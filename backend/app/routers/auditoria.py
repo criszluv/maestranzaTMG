@@ -20,14 +20,19 @@ from app.schemas.auditoria import AuditoriaOut
 
 router = APIRouter(prefix="/auditoria", tags=["Auditoría (Ley 21.719)"])
 
-_TABLAS_VALIDAS = ("users", "rrhh_solicitudes", "pedido")
+_TABLAS_VALIDAS = (
+    "users", "rrhh_solicitudes", "pedido",
+    "clientes", "cliente_contactos", "cliente_entidades", "trabajos",
+    "facturas",
+)
 
 
 @router.get("", response_model=List[AuditoriaOut])
 def listar_auditoria(
     tabla: str | None = Query(
         default=None,
-        description="Filtra por tabla: users | rrhh_solicitudes | pedido.",
+        description="Filtra por tabla: users | rrhh_solicitudes | pedido | "
+        "clientes | cliente_contactos | cliente_entidades | trabajos.",
     ),
     limite: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
