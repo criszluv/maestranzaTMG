@@ -51,6 +51,19 @@ npm install
 npm start          # abre el menú de Expo; escanea el QR con Expo Go
 ```
 
+> **"Project is incompatible with this version of Expo Go"**
+> Expo Go es una app genérica de la tienda: solo trae el runtime del SDK
+> más reciente que Expo publicó. Si la versión instalada en el teléfono es
+> anterior al SDK del proyecto (57), da ese error. Soluciones:
+> 1. Actualizar Expo Go desde Play Store / App Store, o
+> 2. **Dejar de depender de Expo Go**: `eas build -p android --profile
+>    development` genera un *development build* propio (ver más abajo) que
+>    reemplaza a Expo Go y no caduca con cada SDK.
+>
+> Mantén los paquetes alineados al SDK con `npx expo install --check`
+> (o `--fix` para aplicarlo): versiones desalineadas causan fallos raros
+> en el dispositivo.
+
 **URL del backend** — se resuelve en este orden (ver `src/services/http.ts`):
 
 1. Variable `EXPO_PUBLIC_API_URL` (p. ej. en un archivo `.env`):
@@ -80,21 +93,31 @@ npm run typecheck
 
 ## Generar el APK (Android) / build iOS
 
-La vía recomendada es **EAS Build** (gratis para builds de desarrollo):
+La vía es **EAS Build** (`eas.json` ya está configurado en el repo):
 
 ```bash
-npm install -g eas-cli
-eas login                      # cuenta gratuita de expo.dev
-eas build:configure            # crea eas.json (elige Android)
-eas build -p android --profile preview   # genera un APK instalable
+npx eas-cli login                                  # cuenta de expo.dev
+npx eas-cli build -p android --profile preview     # APK autónomo (el que se reparte)
+npx eas-cli build -p android --profile development # dev build (reemplaza Expo Go)
+npx eas-cli build:list --platform android --limit 1 --json --non-interactive  # ver estado
 ```
 
-- El perfil `preview` produce un **APK** directo para instalar en teléfonos
-  (el perfil `production` genera un AAB para Play Store).
-- Antes de un build "de verdad", fija la URL pública del backend:
-  crea `.env` con `EXPO_PUBLIC_API_URL=https://tu-backend.ejemplo.cl`
-  (o define `env` en el perfil de `eas.json`). El APK ya no puede inferir
-  la IP del PC como en desarrollo.
+- **`preview`** produce un **APK autónomo**: se instala y funciona solo, sin
+  PC ni Expo Go. Es el que se entrega a los trabajadores.
+  **`development`** produce un dev build con recarga en caliente (necesita
+  `npm start` corriendo). **`production`** genera un AAB para Play Store.
+- **La URL del backend ya viene fija en `eas.json`** (`env.EXPO_PUBLIC_API_URL`
+  en los perfiles `preview` y `production`). Un APK instalado no puede
+  inferir la IP del PC como en desarrollo, así que ese valor es obligatorio:
+  si cambias de hosting, edítalo ahí y vuelve a compilar.
+- **EAS compila desde el estado commiteado de git**: haz `git commit` de
+  cualquier cambio (incluido `eas.json`) *antes* de lanzar el build, o se
+  compilará la versión anterior.
+- En el plan gratuito el build puede quedar **en cola bastante rato** antes
+  de empezar; la compilación en sí toma 10-20 min.
+- El APK se firma con un keystore que EAS genera y guarda en tu cuenta.
+  **Consérvalo** (`npx eas-cli credentials`): sin él, Android no reconocerá
+  futuras versiones como la misma app.
 - `android.usesCleartextTraffic` está en `true` para permitir `http://` en
   pruebas dentro de la red local; **desactívalo cuando el backend tenga
   HTTPS** en producción.
