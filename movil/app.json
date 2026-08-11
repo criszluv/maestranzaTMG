@@ -51,7 +51,9 @@
           "photosPermission": "La galería se usa para adjuntar fotos de avance y documentos de respaldo.",
           "cameraPermission": "La cámara se usa para subir fotos de avance de los pedidos y documentos de respaldo de solicitudes."
         }
-      ]
+      ],
+      "expo-image",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,
