@@ -5,6 +5,9 @@ import { API_BASE_URL, authHeaders, request } from '../../services/http'
 
 export type EstadoPedido = 'pendiente' | 'en proceso' | 'terminado'
 
+/** Destino comercial al cerrar un pedido terminado. */
+export type TipoCierre = 'pagado' | 'pendiente'
+
 export interface Pedido {
   id: number
   pedido: string
@@ -13,6 +16,13 @@ export interface Pedido {
   valor?: number | null
   encargado_id?: number | null
   encargado_nombre?: string | null
+  cliente_id?: number | null
+  cliente_nombre?: string | null
+  /** null = aún no derivado a trabajos/facturas. */
+  cerrado_en?: string | null
+  cierre_tipo?: TipoCierre | null
+  trabajo_id?: number | null
+  factura_id?: number | null
 }
 
 export interface PedidoCreate {
@@ -21,6 +31,7 @@ export interface PedidoCreate {
   estado?: EstadoPedido
   valor?: number | null
   encargado_id?: number | null
+  cliente_id?: number | null
 }
 
 export interface PedidoUpdate {
@@ -29,6 +40,20 @@ export interface PedidoUpdate {
   estado?: EstadoPedido
   valor?: number | null
   encargado_id?: number | null
+  cliente_id?: number | null
+}
+
+/**
+ * Cierre del pedido terminado. Los campos omitidos se heredan del pedido
+ * (valor) o se generan (detalle = nombre + descripción, fecha = hoy).
+ */
+export interface PedidoCierrePayload {
+  tipo: TipoCierre
+  valor?: number | null
+  fecha?: string | null      // YYYY-MM-DD
+  numero?: number | null     // solo cierre 'pendiente' (N° de factura)
+  nota?: string | null
+  detalle?: string | null
 }
 
 export async function getPedidos(): Promise<Pedido[]> {
@@ -65,6 +90,22 @@ export async function actualizarEstadoPedido(
 
 export async function eliminarPedido(id: number): Promise<void> {
   return request<void>(`/pedidos/${id}`, { method: 'DELETE' })
+}
+
+/**
+ * Cierra un pedido TERMINADO y lo deriva al módulo comercial:
+ *   'pagado'    -> queda registrado en Trabajos realizados
+ *   'pendiente' -> queda registrado en Pagos pendientes (factura por cobrar)
+ * Solo se puede cerrar una vez y requiere que el pedido tenga cliente.
+ */
+export async function cerrarPedido(
+  id: number,
+  data: PedidoCierrePayload,
+): Promise<Pedido> {
+  return request<Pedido>(`/pedidos/${id}/cerrar`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
 }
 
 

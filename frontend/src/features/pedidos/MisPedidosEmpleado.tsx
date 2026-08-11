@@ -98,6 +98,11 @@ export default function MisPedidosEmpleado() {
                     <div style={{ fontWeight: 'bold', fontSize: 15, color: '#111827' }}>
                       {p.pedido}
                     </div>
+                    {p.cliente_nombre && (
+                      <div style={{ fontSize: 12, color: 'var(--primary)', marginTop: 2, fontWeight: 600 }}>
+                        Cliente: {p.cliente_nombre}
+                      </div>
+                    )}
                     {p.descripcion && (
                       <div style={{ fontSize: 13, color: '#6b7280', marginTop: 4 }}>
                         {p.descripcion}

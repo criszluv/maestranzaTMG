@@ -639,6 +639,111 @@ def run():
     ).status_code == 204)
     client.delete(f"/api/facturas/{fac_vinc['id']}", headers=_auth(admin_token))
 
+    # 23e) CIERRE COMERCIAL DEL PEDIDO: el encargado lo deja 'terminado' y
+    #      RRHH lo deriva -> 'pagado' crea un Trabajo realizado; 'pendiente'
+    #      crea una Factura por cobrar. Se cierra UNA sola vez y queda congelado.
+    def _pedido_terminado(cliente_id=None):
+        cuerpo = {
+            "pedido": "Torneado de eje",
+            "descripcion": "Eje 40 mm",
+            "valor": 90000,
+            "encargado_id": ids["emp@t.cl"],
+        }
+        if cliente_id is not None:
+            cuerpo["cliente_id"] = cliente_id
+        pid = client.post("/api/pedidos", json=cuerpo, headers=_auth(rrhh_token)).json()["id"]
+        # El propio encargado lo marca como terminado (flujo real).
+        client.patch(
+            f"/api/pedidos/{pid}/estado",
+            json={"estado": "terminado"},
+            headers=_auth(emp_token),
+        )
+        return pid
+
+    r = client.post(
+        "/api/pedidos",
+        json={"pedido": "Con cliente", "cliente_id": cli["id"]},
+        headers=_auth(rrhh_token),
+    )
+    ped_cli_id = r.json().get("id") if r.status_code == 201 else None
+    check("pedidos: crear con cliente -> 201 con nombre",
+          r.status_code == 201 and r.json().get("cliente_nombre") == "AGRICOLA DE PRUEBA LTDA")
+    check("pedidos: cliente inexistente -> 404", client.post(
+        "/api/pedidos", json={"pedido": "X", "cliente_id": 999999}, headers=_auth(rrhh_token),
+    ).status_code == 404)
+
+    check("cierre: pedido no terminado -> 409", client.post(
+        f"/api/pedidos/{ped_cli_id}/cerrar", json={"tipo": "pagado"}, headers=_auth(rrhh_token),
+    ).status_code == 409)
+
+    ped_sin_cli = _pedido_terminado()
+    check("cierre: sin cliente asignado -> 400", client.post(
+        f"/api/pedidos/{ped_sin_cli}/cerrar", json={"tipo": "pagado"}, headers=_auth(rrhh_token),
+    ).status_code == 400)
+
+    # --- Cierre PAGADO -> Trabajo realizado ---
+    ped_pagado = _pedido_terminado(cli["id"])
+    check("cierre: empleado NO cierra -> 403", client.post(
+        f"/api/pedidos/{ped_pagado}/cerrar", json={"tipo": "pagado"}, headers=_auth(emp_token),
+    ).status_code == 403)
+    r = client.post(
+        f"/api/pedidos/{ped_pagado}/cerrar",
+        json={"tipo": "pagado", "fecha": "2026-07-20"},
+        headers=_auth(rrhh_token),
+    )
+    cerrado = r.json() if r.status_code == 200 else {}
+    check("cierre pagado -> 200", r.status_code == 200)
+    check("cierre pagado marca tipo y fecha",
+          cerrado.get("cierre_tipo") == "pagado" and cerrado.get("cerrado_en") is not None)
+    check("cierre pagado enlaza trabajo (no factura)",
+          cerrado.get("trabajo_id") is not None and cerrado.get("factura_id") is None)
+    trabajos_cli = client.get(
+        f"/api/trabajos?cliente_id={cli['id']}", headers=_auth(rrhh_token)
+    ).json()
+    check("cierre pagado crea el trabajo con el valor del pedido", any(
+        t["id"] == cerrado.get("trabajo_id") and t["valor"] == 90000
+        and t["estado"] == "Finalizado" for t in trabajos_cli
+    ))
+
+    check("cierre: cerrar dos veces -> 409", client.post(
+        f"/api/pedidos/{ped_pagado}/cerrar", json={"tipo": "pendiente"}, headers=_auth(rrhh_token),
+    ).status_code == 409)
+    check("cierre: pedido cerrado no cambia de estado -> 409", client.patch(
+        f"/api/pedidos/{ped_pagado}/estado", json={"estado": "en proceso"},
+        headers=_auth(rrhh_token),
+    ).status_code == 409)
+    check("cierre: pedido cerrado no cambia de cliente -> 409", client.put(
+        f"/api/pedidos/{ped_pagado}", json={"cliente_id": 999999}, headers=_auth(rrhh_token),
+    ).status_code == 409)
+    check("cierre: pedido cerrado sí admite corregir texto -> 200", client.put(
+        f"/api/pedidos/{ped_pagado}", json={"descripcion": "texto corregido"},
+        headers=_auth(rrhh_token),
+    ).status_code == 200)
+
+    # --- Cierre PENDIENTE -> Factura por cobrar ---
+    ped_cobrar = _pedido_terminado(cli["id"])
+    r = client.post(
+        f"/api/pedidos/{ped_cobrar}/cerrar",
+        json={"tipo": "pendiente", "numero": 3050, "valor": 120000, "nota": "30 días"},
+        headers=_auth(rrhh_token),
+    )
+    cobrar = r.json() if r.status_code == 200 else {}
+    check("cierre pendiente -> 200", r.status_code == 200)
+    check("cierre pendiente enlaza factura (no trabajo)",
+          cobrar.get("factura_id") is not None and cobrar.get("trabajo_id") is None)
+    pendientes_f = client.get("/api/facturas?estado=pendiente", headers=_auth(rrhh_token)).json()
+    check("cierre pendiente crea la factura por cobrar", any(
+        f["id"] == cobrar.get("factura_id") and f["numero"] == 3050
+        and f["monto"] == 120000 and f["cliente_id"] == cli["id"] for f in pendientes_f
+    ))
+
+    # Un cliente dado de baja no se puede asignar a pedidos nuevos.
+    client.post(f"/api/clientes/{cli['id']}/deshabilitar", headers=_auth(rrhh_token))
+    check("pedidos: cliente deshabilitado -> 400", client.post(
+        "/api/pedidos", json={"pedido": "Y", "cliente_id": cli["id"]}, headers=_auth(rrhh_token),
+    ).status_code == 400)
+    client.post(f"/api/clientes/{cli['id']}/habilitar", headers=_auth(rrhh_token))
+
     # 24) Visor de auditoría. En SQLite no hay triggers, así que insertamos una
     #     fila directa para verificar lectura, filtro y guardas de rol.
     from datetime import datetime, timezone

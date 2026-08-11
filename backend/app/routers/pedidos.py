@@ -2,13 +2,22 @@
 """
 Módulo de pedidos (órdenes de trabajo).
 
-  - RRHH/Admin: CRUD completo y asignación de encargado.
+  - RRHH/Admin: CRUD completo, asignación de encargado y de cliente, y
+    CIERRE comercial del pedido terminado.
   - Empleado: ve sus pedidos y actualiza el estado de los que le asignaron.
+
+Ciclo de vida completo:
+  1. RRHH crea el pedido, le asigna un cliente y un encargado (empleado).
+  2. El encargado avanza el estado hasta 'terminado' (y sube fotos).
+  3. RRHH lo cierra eligiendo destino: 'pagado' -> Trabajo realizado;
+     'pendiente' -> Factura por cobrar (pagos pendientes).
+Un pedido cerrado queda congelado (no se le cambia estado ni cliente) para
+que nunca contradiga al registro comercial que originó.
 """
 
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import List
 
 import requests
@@ -18,9 +27,10 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.db import get_db
 from app.dependencies import get_current_user, require_roles
-from app.models import Pedido, PedidoFoto, User
+from app.models import Cliente, Factura, Pedido, PedidoFoto, Trabajo, User
 from app.schemas.pedido import (
     FotoPedidoOut,
+    PedidoCierre,
     PedidoCreate,
     PedidoEstadoUpdate,
     PedidoOut,
@@ -55,6 +65,60 @@ def _validar_encargado(db: Session, encargado_id: int | None) -> None:
         )
 
 
+def _validar_cliente(db: Session, cliente_id: int | None) -> None:
+    """Al ASIGNAR un cliente, debe existir y estar habilitado."""
+    if cliente_id is None:
+        return
+    cliente = db.query(Cliente).filter(Cliente.id == cliente_id).first()
+    if cliente is None:
+        raise HTTPException(status_code=404, detail="El cliente indicado no existe.")
+    if cliente.estado != "habilitado":
+        raise HTTPException(
+            status_code=400,
+            detail="El cliente está deshabilitado: habilítalo o elige otro.",
+        )
+
+
+def _assert_no_cerrado(pedido: Pedido, campo: str) -> None:
+    """Un pedido ya derivado a trabajos/facturas no cambia de estado ni de
+    cliente: eso dejaría el registro comercial inconsistente."""
+    if pedido.cerrado_en is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"El pedido ya fue cerrado como '{pedido.cierre_tipo}': no se "
+                f"puede cambiar su {campo}. Corrige el registro en "
+                "Trabajos o en Pagos pendientes."
+            ),
+        )
+
+
+def _a_out(
+    pedido: Pedido,
+    encargado_nombre: str | None = None,
+    cliente_nombre: str | None = None,
+) -> PedidoOut:
+    out = PedidoOut.model_validate(pedido)
+    out.encargado_nombre = encargado_nombre
+    out.cliente_nombre = cliente_nombre
+    return out
+
+
+def _nombres_de(db: Session, pedido: Pedido) -> tuple[str | None, str | None]:
+    """(encargado, cliente) para completar la respuesta tras escribir."""
+    encargado = (
+        db.query(User.nombre).filter(User.id == pedido.encargado_id).scalar()
+        if pedido.encargado_id
+        else None
+    )
+    cliente = (
+        db.query(Cliente.nombre).filter(Cliente.id == pedido.cliente_id).scalar()
+        if pedido.cliente_id
+        else None
+    )
+    return encargado, cliente
+
+
 @router.get("", response_model=List[PedidoOut])
 def listar_pedidos(
     db: Session = Depends(get_db),
@@ -62,17 +126,17 @@ def listar_pedidos(
 ) -> List[PedidoOut]:
     """Lista todos los pedidos (vista RRHH/Admin)."""
     rows = (
-        db.query(Pedido, User.nombre.label("encargado_nombre"))
+        db.query(
+            Pedido,
+            User.nombre.label("encargado_nombre"),
+            Cliente.nombre.label("cliente_nombre"),
+        )
         .outerjoin(User, Pedido.encargado_id == User.id)
+        .outerjoin(Cliente, Pedido.cliente_id == Cliente.id)
         .order_by(Pedido.id.desc())
         .all()
     )
-    resultado: list[PedidoOut] = []
-    for pedido, encargado_nombre in rows:
-        out = PedidoOut.model_validate(pedido)
-        out.encargado_nombre = encargado_nombre
-        resultado.append(out)
-    return resultado
+    return [_a_out(p, encargado, cliente) for p, encargado, cliente in rows]
 
 
 @router.get("/mis-pedidos/{user_id}", response_model=List[PedidoOut])
@@ -88,18 +152,18 @@ def mis_pedidos(
             detail="Solo puedes consultar tus propios pedidos.",
         )
     rows = (
-        db.query(Pedido, User.nombre.label("encargado_nombre"))
+        db.query(
+            Pedido,
+            User.nombre.label("encargado_nombre"),
+            Cliente.nombre.label("cliente_nombre"),
+        )
         .outerjoin(User, Pedido.encargado_id == User.id)
+        .outerjoin(Cliente, Pedido.cliente_id == Cliente.id)
         .filter(Pedido.encargado_id == user_id)
         .order_by(Pedido.id.desc())
         .all()
     )
-    resultado: list[PedidoOut] = []
-    for pedido, encargado_nombre in rows:
-        out = PedidoOut.model_validate(pedido)
-        out.encargado_nombre = encargado_nombre
-        resultado.append(out)
-    return resultado
+    return [_a_out(p, encargado, cliente) for p, encargado, cliente in rows]
 
 
 @router.post("", response_model=PedidoOut, status_code=201)
@@ -109,13 +173,14 @@ def crear_pedido(
     actor: User = Depends(require_roles("rrhh")),
 ) -> PedidoOut:
     _validar_encargado(db, payload.encargado_id)
+    _validar_cliente(db, payload.cliente_id)
     fijar_actor_auditoria(db, actor)
     nuevo = Pedido(**payload.model_dump())
     db.add(nuevo)
     db.commit()
     db.refresh(nuevo)
-    logger.info("Pedidos crear -> id=%s", nuevo.id)
-    return PedidoOut.model_validate(nuevo)
+    logger.info("Pedidos crear -> id=%s cliente=%s", nuevo.id, nuevo.cliente_id)
+    return _a_out(nuevo, *_nombres_de(db, nuevo))
 
 
 @router.put("/{pedido_id}", response_model=PedidoOut)
@@ -132,12 +197,20 @@ def actualizar_pedido(
     datos = payload.model_dump(exclude_unset=True)
     if "encargado_id" in datos:
         _validar_encargado(db, datos["encargado_id"])
+    # Solo validamos/bloqueamos cuando el valor REALMENTE cambia: así un
+    # formulario que reenvía todos los campos no falla sin motivo.
+    if "estado" in datos and datos["estado"] != pedido.estado:
+        _assert_no_cerrado(pedido, "estado")
+    if "cliente_id" in datos and datos["cliente_id"] != pedido.cliente_id:
+        _assert_no_cerrado(pedido, "cliente")
+        _validar_cliente(db, datos["cliente_id"])
+
     fijar_actor_auditoria(db, actor)
     for campo, valor in datos.items():
         setattr(pedido, campo, valor)
     db.commit()
     db.refresh(pedido)
-    return PedidoOut.model_validate(pedido)
+    return _a_out(pedido, *_nombres_de(db, pedido))
 
 
 @router.patch("/{pedido_id}/estado", response_model=PedidoOut)
@@ -159,12 +232,120 @@ def actualizar_estado_pedido(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo puedes actualizar pedidos asignados a ti.",
         )
+    if payload.estado != pedido.estado:
+        _assert_no_cerrado(pedido, "estado")
+
     fijar_actor_auditoria(db, current_user)
     pedido.estado = payload.estado
     db.commit()
     db.refresh(pedido)
     logger.info("Pedidos estado -> id=%s estado=%s", pedido_id, payload.estado)
-    return PedidoOut.model_validate(pedido)
+    return _a_out(pedido, *_nombres_de(db, pedido))
+
+
+# ===========================================================================
+#  CIERRE COMERCIAL DEL PEDIDO (RRHH/Admin)
+# ===========================================================================
+
+def _detalle_por_defecto(pedido: Pedido) -> str:
+    """Nombre del pedido + descripción, como detalle del registro comercial."""
+    partes = [pedido.pedido.strip()]
+    if (pedido.descripcion or "").strip():
+        partes.append(pedido.descripcion.strip())
+    return " — ".join(partes)[:2000]
+
+
+@router.post("/{pedido_id}/cerrar", response_model=PedidoOut)
+def cerrar_pedido(
+    pedido_id: int,
+    payload: PedidoCierre,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_roles("rrhh")),
+) -> PedidoOut:
+    """
+    Deriva un pedido TERMINADO al módulo comercial y lo marca como cerrado:
+
+      tipo='pagado'     -> crea un Trabajo realizado (historial del cliente)
+      tipo='pendiente'  -> crea una Factura por cobrar (pagos pendientes)
+
+    Un pedido se cierra UNA sola vez: la fila se bloquea (SELECT ... FOR
+    UPDATE) para que dos usuarios simultáneos no generen registros
+    duplicados; el segundo recibe 409. Todo ocurre en una única transacción,
+    así que o se crean pedido-cerrado + registro comercial, o no se crea nada.
+    """
+    pedido = (
+        db.query(Pedido).filter(Pedido.id == pedido_id).with_for_update().first()
+    )
+    if pedido is None:
+        raise HTTPException(status_code=404, detail="Pedido no encontrado")
+    if pedido.cerrado_en is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Este pedido ya fue cerrado como '{pedido.cierre_tipo}'.",
+        )
+    if pedido.estado != "terminado":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "Solo se cierran pedidos terminados. El encargado debe marcarlo "
+                "como 'terminado' primero."
+            ),
+        )
+    if pedido.cliente_id is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Asigna un cliente al pedido antes de cerrarlo.",
+        )
+    cliente = db.query(Cliente).filter(Cliente.id == pedido.cliente_id).first()
+    if cliente is None:
+        raise HTTPException(
+            status_code=404,
+            detail="El cliente del pedido ya no existe. Asigna otro cliente.",
+        )
+
+    fecha = payload.fecha or date.today()
+    valor = payload.valor if payload.valor is not None else pedido.valor
+    detalle = (payload.detalle or "").strip() or _detalle_por_defecto(pedido)
+
+    fijar_actor_auditoria(db, actor)
+
+    if payload.tipo == "pagado":
+        trabajo = Trabajo(
+            cliente_id=cliente.id,
+            fecha=fecha,
+            estado="Finalizado",
+            valor=valor,
+            detalle=detalle,
+        )
+        db.add(trabajo)
+        db.flush()  # asigna el id sin cerrar la transacción
+        pedido.trabajo_id = trabajo.id
+        destino_id = trabajo.id
+    else:
+        factura = Factura(
+            cliente_id=cliente.id,
+            cliente_texto=cliente.nombre[:200],
+            numero=payload.numero,
+            monto=valor,
+            fecha_emision=fecha,
+            estado="pendiente",
+            nota=(payload.nota or "").strip() or None,
+        )
+        db.add(factura)
+        db.flush()
+        pedido.factura_id = factura.id
+        destino_id = factura.id
+
+    pedido.cerrado_en = datetime.now(timezone.utc)
+    pedido.cierre_tipo = payload.tipo
+    db.commit()
+    db.refresh(pedido)
+
+    logger.info(
+        "Pedidos cerrar -> id=%s tipo=%s destino=%s cliente=%s actor=%s",
+        pedido_id, payload.tipo, destino_id, cliente.id, actor.id,
+    )
+    return _a_out(pedido, _nombres_de(db, pedido)[0], cliente.nombre)
 
 
 @router.delete("/{pedido_id}", status_code=204)

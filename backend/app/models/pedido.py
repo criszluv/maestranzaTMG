@@ -35,6 +35,37 @@ class Pedido(Base):
         index=True,
     )
 
+    # Cliente al que se factura. NULL en los pedidos históricos; obligatorio
+    # para poder cerrar el pedido (ver más abajo).
+    cliente_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger,
+        ForeignKey("clientes.id"),
+        nullable=True,
+        index=True,
+    )
+
+    # --- Cierre comercial (migración 009) -------------------------------
+    # Cuando el encargado termina el pedido, RRHH lo deriva al módulo
+    # comercial: 'pagado' -> crea un Trabajo realizado; 'pendiente' -> crea
+    # una Factura por cobrar. Se guarda cuándo, con qué criterio y a qué
+    # registro dio origen (los FK son ON DELETE SET NULL en la BD: si el
+    # registro comercial se corrige, el cierre sigue documentado).
+    cerrado_en: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    cierre_tipo: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    trabajo_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger,
+        ForeignKey("trabajos.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    factura_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger,
+        ForeignKey("facturas.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
     # Fechas para trazabilidad y RETENCIÓN LEGAL (art. 17 Código Tributario:
     # 6 años para documentación de transacciones). La depuración vive en la
     # BD: fn_depurar_retencion() (backend/db/migrations/001...sql).

@@ -112,6 +112,9 @@ export function MisPedidosView() {
               <Text style={styles.nombre}>{p.pedido}</Text>
               <Badge texto={p.estado} />
             </View>
+            {!!p.cliente_nombre && (
+              <Text style={styles.cliente}>Cliente: {p.cliente_nombre}</Text>
+            )}
             {!!p.descripcion && <Text style={styles.descripcion}>{p.descripcion}</Text>}
             {p.valor !== null && p.valor !== undefined && (
               <Text style={styles.valor}>Valor: {formatearCLP(p.valor)}</Text>
@@ -154,6 +157,12 @@ const styles = StyleSheet.create({
     marginBottom: space.s2,
   },
   nombre: { fontSize: fontSize.md, fontWeight: '700', color: colors.text, flex: 1 },
+  cliente: {
+    fontSize: fontSize.xs,
+    color: colors.primary,
+    fontWeight: '700',
+    marginBottom: space.s1,
+  },
   descripcion: { fontSize: fontSize.sm, color: colors.text2, marginBottom: space.s1 },
   valor: { fontSize: fontSize.sm, color: colors.text3, marginBottom: space.s1 },
   acciones: {
