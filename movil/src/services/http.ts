@@ -14,6 +14,11 @@
 // -----------------------------------------------------------------------
 
 import Constants from 'expo-constants'
+import {
+  File as ArchivoFS,
+  UploadType,
+  type UploadResult,
+} from 'expo-file-system'
 import { Platform } from 'react-native'
 import * as storage from './storage'
 
@@ -192,38 +197,65 @@ export interface ArchivoLocal {
   mimeType: string
 }
 
-/**
- * Sube un archivo como multipart/form-data (campo "archivo").
- * En nativo, fetch acepta { uri, name, type }; en web convertimos el
- * data/blob URI a Blob. No se fija Content-Type: el runtime pone el boundary.
- */
-export async function subirArchivo<T>(path: string, archivo: ArchivoLocal): Promise<T> {
-  const form = new FormData()
-
-  if (Platform.OS === 'web') {
-    const blob = await (await fetch(archivo.uri)).blob()
-    form.append('archivo', new File([blob], archivo.nombre, { type: archivo.mimeType }))
-  } else {
-    form.append('archivo', {
-      uri: archivo.uri,
-      name: archivo.nombre,
-      type: archivo.mimeType,
-    } as unknown as Blob)
-  }
-
-  const res = await fetch(`${API_BASE_URL}${path}`, {
-    method: 'POST',
-    headers: authHeaders(),
-    body: form,
-  })
-
-  if (res.status === 401 && getToken()) {
+/** Interpreta el resultado de una subida (código + cuerpo en texto). */
+async function procesarSubida<T>(status: number, cuerpoTexto: string): Promise<T> {
+  if (status === 401 && getToken()) {
     await clearToken()
     emitUnauthorized()
   }
 
-  if (!res.ok) {
-    throw await errorDeRespuesta(res, 'No se pudo subir el archivo.')
+  let datos: unknown = null
+  try {
+    datos = JSON.parse(cuerpoTexto)
+  } catch {
+    // Respuesta sin JSON (proxy, timeout…): queda el mensaje por defecto.
   }
-  return res.json() as Promise<T>
+
+  if (status < 200 || status >= 300) {
+    throw new Error(mensajeDeError(datos, 'No se pudo subir el archivo.'))
+  }
+  return datos as T
+}
+
+/**
+ * Sube un archivo como multipart/form-data (campo "archivo").
+ *
+ * En NATIVO se usa la subida multipart del módulo de archivos, no fetch:
+ * desde el SDK 54 Expo reemplaza el fetch global por su propia
+ * implementación, que solo admite `string`, `Blob` u objetos con `bytes()`.
+ * El clásico `{ uri, name, type }` de React Native ya no se acepta y falla
+ * con "Unsupported FormDataPart implementation". Además, la subida nativa
+ * transmite el archivo en streaming: una foto de varios MB no se carga
+ * entera en memoria de JS.
+ *
+ * En WEB sí se usa FormData con un File real, que es lo estándar del
+ * navegador (allí no existe la subida nativa).
+ */
+export async function subirArchivo<T>(path: string, archivo: ArchivoLocal): Promise<T> {
+  const url = `${API_BASE_URL}${path}`
+
+  if (Platform.OS === 'web') {
+    const blob = await (await fetch(archivo.uri)).blob()
+    const form = new FormData()
+    form.append('archivo', new File([blob], archivo.nombre, { type: archivo.mimeType }))
+
+    const res = await fetch(url, { method: 'POST', headers: authHeaders(), body: form })
+    return procesarSubida<T>(res.status, await res.text())
+  }
+
+  let resultado: UploadResult
+  try {
+    resultado = await new ArchivoFS(archivo.uri).upload(url, {
+      httpMethod: 'POST',
+      uploadType: UploadType.MULTIPART,
+      fieldName: 'archivo',   // debe coincidir con el parámetro del backend
+      mimeType: archivo.mimeType,
+      headers: authHeaders(),
+    })
+  } catch {
+    throw new Error(
+      `No se pudo enviar el archivo al servidor (${API_BASE}). Revisa tu conexión.`,
+    )
+  }
+  return procesarSubida<T>(resultado.status, resultado.body)
 }
