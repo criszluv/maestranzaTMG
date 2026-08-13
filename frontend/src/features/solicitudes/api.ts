@@ -1,7 +1,7 @@
 // src/features/solicitudes/api.ts
 // API del módulo de solicitudes de días libres / permisos / licencias.
 
-import { API_BASE_URL, authHeaders, request } from '../../services/http'
+import { API_BASE_URL, authHeaders, errorDeRespuesta, request } from '../../services/http'
 
 export interface SolicitudCreate {
   trabajador_id: number
@@ -107,14 +107,7 @@ export async function subirAdjunto(
     body: form,
   })
   if (!res.ok) {
-    let detail = 'No se pudo subir el documento.'
-    try {
-      const data = (await res.json()) as { detail?: unknown }
-      if (typeof data.detail === 'string') detail = data.detail
-    } catch {
-      // sin cuerpo JSON: mensaje genérico
-    }
-    throw new Error(detail)
+    throw await errorDeRespuesta(res, 'No se pudo subir el documento.')
   }
   return res.json() as Promise<AdjuntoSolicitud>
 }

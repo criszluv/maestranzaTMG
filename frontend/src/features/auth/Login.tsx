@@ -1,6 +1,6 @@
 // src/features/auth/Login.tsx
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Navigate, useNavigate } from 'react-router-dom'
 import { useAuth } from './AuthContext'
 import '../../styles/App.css'
 
@@ -10,7 +10,7 @@ function Login() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
-  const { login } = useAuth()
+  const { login, user } = useAuth()
   const navigate = useNavigate()
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -30,6 +30,12 @@ function Login() {
       setLoading(false)
     }
   }
+
+  // Con sesión activa no se muestra el formulario: se llega aquí con el
+  // botón Atrás del navegador, y dejar un login "falso" a la vista confunde
+  // (parece que cerraste sesión cuando en realidad sigue abierta).
+  // `replace` evita que Atrás quede rebotando entre login y dashboard.
+  if (user) return <Navigate to="/dashboard" replace />
 
   return (
     <div

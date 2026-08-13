@@ -1,6 +1,6 @@
 // src/features/pedidos/FotosPedido.tsx
 // Fotos de progreso de un pedido (componente compartido):
-//   - Empleado asignado: sube (máx. 10, 5 MB, JPG/PNG/WebP) y elimina.
+//   - Empleado asignado: sube (máx. 10 fotos, 50 MB c/u, JPG/PNG/WebP) y elimina.
 //   - RRHH/Admin: ven el progreso y pueden eliminar (moderación).
 // "Eliminar" es lógico: desaparece de las vistas, el archivo queda
 // resguardado en el bucket privado (Ley 21.719 / trazabilidad).

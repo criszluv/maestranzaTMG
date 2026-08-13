@@ -737,6 +737,64 @@ def run():
         and f["monto"] == 120000 and f["cliente_id"] == cli["id"] for f in pendientes_f
     ))
 
+    # --- Corregir el cobro: pagado <-> pendiente, manteniendo el pedido ---
+    # El pedido cerrado como PAGADO pasa a por cobrar: se borra el trabajo,
+    # nace una factura y el pedido queda marcado 'pendiente'.
+    r = client.post(
+        f"/api/trabajos/{cerrado.get('trabajo_id')}/a-pendiente",
+        headers=_auth(rrhh_token),
+    )
+    fac_conv = r.json() if r.status_code == 201 else {}
+    check("convertir: trabajo -> pendiente 201", r.status_code == 201)
+    check("convertir: la factura hereda cliente y monto",
+          fac_conv.get("cliente_id") == cli["id"] and fac_conv.get("monto") == 90000
+          and fac_conv.get("estado") == "pendiente")
+    check("convertir: el trabajo original desaparece", all(
+        t["id"] != cerrado.get("trabajo_id")
+        for t in client.get(f"/api/trabajos?cliente_id={cli['id']}", headers=_auth(rrhh_token)).json()
+    ))
+    ped_tras = [
+        p for p in client.get("/api/pedidos", headers=_auth(rrhh_token)).json()
+        if p["id"] == ped_pagado
+    ][0]
+    check("convertir: el pedido queda 'pendiente' y apunta a la factura",
+          ped_tras["cierre_tipo"] == "pendiente"
+          and ped_tras["factura_id"] == fac_conv.get("id")
+          and ped_tras["trabajo_id"] is None)
+
+    # Y de vuelta: la factura se da por pagada y regresa a trabajos.
+    r = client.post(
+        f"/api/facturas/{fac_conv.get('id')}/a-trabajo", headers=_auth(rrhh_token)
+    )
+    tra_conv = r.json() if r.status_code == 201 else {}
+    check("convertir: factura -> trabajo 201", r.status_code == 201)
+    check("convertir: el trabajo hereda cliente y valor",
+          tra_conv.get("cliente_id") == cli["id"] and tra_conv.get("valor") == 90000)
+    ped_tras2 = [
+        p for p in client.get("/api/pedidos", headers=_auth(rrhh_token)).json()
+        if p["id"] == ped_pagado
+    ][0]
+    check("convertir: el pedido vuelve a 'pagado'",
+          ped_tras2["cierre_tipo"] == "pagado"
+          and ped_tras2["trabajo_id"] == tra_conv.get("id")
+          and ped_tras2["factura_id"] is None)
+    check("convertir: empleado no puede -> 403", client.post(
+        f"/api/trabajos/{tra_conv.get('id')}/a-pendiente", headers=_auth(emp_token)
+    ).status_code == 403)
+    check("convertir: trabajo inexistente -> 404", client.post(
+        "/api/trabajos/999999/a-pendiente", headers=_auth(rrhh_token)
+    ).status_code == 404)
+
+    # Una factura sin cliente vinculado no puede pasar a trabajos (FK NOT NULL).
+    fac_suelta = client.post(
+        "/api/facturas", json={"cliente_texto": "CLIENTE SUELTO", "monto": 1000},
+        headers=_auth(rrhh_token),
+    ).json()
+    check("convertir: factura sin cliente -> 400", client.post(
+        f"/api/facturas/{fac_suelta['id']}/a-trabajo", headers=_auth(rrhh_token)
+    ).status_code == 400)
+    client.delete(f"/api/facturas/{fac_suelta['id']}", headers=_auth(admin_token))
+
     # Un cliente dado de baja no se puede asignar a pedidos nuevos.
     client.post(f"/api/clientes/{cli['id']}/deshabilitar", headers=_auth(rrhh_token))
     check("pedidos: cliente deshabilitado -> 400", client.post(

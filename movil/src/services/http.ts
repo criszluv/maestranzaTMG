@@ -85,6 +85,61 @@ function emitUnauthorized(): void {
 }
 
 // =========================
+//  MENSAJES DE ERROR DEL BACKEND
+// =========================
+// FastAPI responde de DOS formas distintas y hay que entender ambas:
+//   - Errores de negocio (400/403/404/409): { detail: "texto" }
+//   - Errores de validación (422):          { detail: [ {loc, msg, type}, … ] }
+// Si solo se lee el caso "texto", los 422 (RUT inválido, teléfono con
+// formato raro, campo muy largo…) se pierden y el usuario ve un genérico.
+
+interface ErrorValidacion {
+  loc?: (string | number)[]
+  msg?: string
+  type?: string
+}
+
+export function mensajeDeError(cuerpo: unknown, porDefecto: string): string {
+  const detail = (cuerpo as { detail?: unknown })?.detail
+
+  if (typeof detail === 'string' && detail.trim()) return detail
+
+  if (Array.isArray(detail)) {
+    const mensajes = (detail as ErrorValidacion[])
+      .slice(0, 3) // no abrumar: los primeros errores bastan para corregir
+      .map((e) => {
+        // Pydantic antepone "Value error, " a los validadores propios.
+        const msg = (e.msg ?? '').replace(/^Value error,\s*/i, '').trim()
+        if (!msg) return ''
+        // Nuestros validadores ya devuelven frases completas en español
+        // ("RUT inválido: …"); los genéricos de Pydantic vienen en inglés y
+        // sin contexto, así que se les antepone el campo.
+        if (e.type === 'value_error') return msg
+        const campo = [...(e.loc ?? [])]
+          .reverse()
+          .find((p) => typeof p === 'string' && p !== 'body')
+        return campo ? `${campo}: ${msg}` : msg
+      })
+      .filter(Boolean)
+
+    if (mensajes.length) return mensajes.join(' · ')
+  }
+
+  return porDefecto
+}
+
+/** Lee el cuerpo de una respuesta fallida y devuelve el mensaje a mostrar. */
+async function errorDeRespuesta(res: Response, porDefecto: string): Promise<Error> {
+  let cuerpo: unknown = null
+  try {
+    cuerpo = await res.json()
+  } catch {
+    // Sin cuerpo JSON: queda el mensaje por defecto.
+  }
+  return new Error(mensajeDeError(cuerpo, porDefecto))
+}
+
+// =========================
 //  HELPER GENÉRICO REQUEST
 // =========================
 
@@ -115,16 +170,7 @@ export async function request<T>(path: string, options?: RequestInit): Promise<T
   }
 
   if (!res.ok) {
-    let detail = 'Error en la petición'
-    try {
-      const errorData = await res.json()
-      if (typeof (errorData as { detail?: unknown })?.detail === 'string') {
-        detail = (errorData as { detail: string }).detail
-      }
-    } catch {
-      // Si no hay JSON, dejamos el mensaje genérico
-    }
-    throw new Error(detail)
+    throw await errorDeRespuesta(res, 'Error en la petición')
   }
 
   if (res.status === 204) {
@@ -177,14 +223,7 @@ export async function subirArchivo<T>(path: string, archivo: ArchivoLocal): Prom
   }
 
   if (!res.ok) {
-    let detail = 'No se pudo subir el archivo.'
-    try {
-      const data = (await res.json()) as { detail?: unknown }
-      if (typeof data.detail === 'string') detail = data.detail
-    } catch {
-      // sin cuerpo JSON: mensaje genérico
-    }
-    throw new Error(detail)
+    throw await errorDeRespuesta(res, 'No se pudo subir el archivo.')
   }
   return res.json() as Promise<T>
 }

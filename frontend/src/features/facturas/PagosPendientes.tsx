@@ -19,6 +19,7 @@ import {
   eliminarFactura,
   getFacturas,
   pagarFactura,
+  pasarFacturaATrabajo,
   reabrirFactura,
   type EstadoFactura,
   type Factura,
@@ -131,6 +132,24 @@ export default function PagosPendientes() {
       notify('Factura reabierta como pendiente.', 'success')
     } catch (e) {
       notify(e instanceof Error ? e.message : 'No se pudo reabrir.', 'error')
+    }
+  }
+
+  // El cobro se concretó: la factura sale de aquí y pasa al historial de
+  // Trabajos realizados (necesita el cliente de la cartera vinculado).
+  const handleATrabajo = async (f: Factura) => {
+    const ok = await confirm({
+      title: 'Pasar a trabajos realizados',
+      message: `${f.cliente_nombre ?? f.cliente_texto}${f.numero ? ` · N°${f.numero}` : ''} saldrá de Pagos pendientes y quedará registrada como trabajo realizado (pagado). ¿Continuar?`,
+      confirmText: 'Pasar a trabajos',
+    })
+    if (!ok) return
+    try {
+      await pasarFacturaATrabajo(f.id)
+      await cargar()
+      notify('Movida a Trabajos realizados.', 'success')
+    } catch (e) {
+      notify(e instanceof Error ? e.message : 'No se pudo mover la factura.', 'error')
     }
   }
 
@@ -311,6 +330,13 @@ export default function PagosPendientes() {
                             Reabrir
                           </button>
                         )}
+                        <button
+                          className="action-btn btn-approve"
+                          title="Ya se cobró: moverla a Trabajos realizados"
+                          onClick={() => void handleATrabajo(f)}
+                        >
+                          A trabajos
+                        </button>
                         <button
                           className="action-btn btn-approve"
                           title="Editar / vincular cliente"

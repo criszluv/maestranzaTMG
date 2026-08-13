@@ -2,6 +2,7 @@
 // API del módulo de trabajos realizados a clientes. Solo RRHH/Admin.
 
 import { request } from '../../services/http'
+import type { Factura } from '../facturas/api'
 
 export type EstadoTrabajo = 'Pendiente' | 'En proceso' | 'Finalizado'
 
@@ -56,4 +57,13 @@ export async function actualizarTrabajo(
 /** Solo admin (correcciones excepcionales; queda auditado). */
 export async function eliminarTrabajo(id: number): Promise<void> {
   return request<void>(`/trabajos/${id}`, { method: 'DELETE' })
+}
+
+/**
+ * Corrige el cobro: el trabajo deja de estar pagado y se mueve a Pagos
+ * pendientes como factura por cobrar. Si venía del cierre de un pedido, ese
+ * pedido queda marcado como 'pendiente'. Devuelve la factura creada.
+ */
+export async function pasarTrabajoAPendiente(id: number): Promise<Factura> {
+  return request<Factura>(`/trabajos/${id}/a-pendiente`, { method: 'POST' })
 }

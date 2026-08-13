@@ -262,7 +262,7 @@ export function MisSolicitudesView() {
             )}
           </View>
           <Text style={styles.ayuda}>
-            Foto del documento · JPG, PNG o WebP · máx. 5 MB.
+            Foto del documento · JPG, PNG o WebP · máx. 50 MB.
             {archivo ? ` Seleccionado: ${archivo.nombre}` : ''}
           </Text>
         </Campo>

@@ -78,13 +78,28 @@ app.add_middleware(
 )
 
 
+# Margen sobre el tamaño del archivo para las cabeceras del multipart.
+_MARGEN_MULTIPART = 1_000_000
+
+
 @app.middleware("http")
 async def limitar_tamano_cuerpo(request: Request, call_next):
-    """Rechaza cuerpos gigantes (mitiga DoS). JSON: 1 MB. Subida de fotos
-    (multipart a .../fotos): tamaño máximo de imagen + margen del multipart."""
+    """
+    Rechaza cuerpos gigantes (mitiga DoS). JSON: 1 MB.
+
+    Las subidas de archivos son la excepción y cada una usa SU propio tope
+    (+ margen del multipart), para que el límite real coincida siempre con el
+    que valida el endpoint y con el del bucket:
+      .../fotos    -> FOTO_MAX_BYTES              (fotos de avance de pedidos)
+      .../adjunto  -> SOLICITUD_ADJUNTO_MAX_BYTES (respaldo de solicitudes)
+    """
     limite = settings.MAX_BODY_BYTES
-    if request.method == "POST" and request.url.path.endswith("/fotos"):
-        limite = settings.FOTO_MAX_BYTES + 1_000_000
+    if request.method == "POST":
+        ruta = request.url.path
+        if ruta.endswith("/fotos"):
+            limite = settings.FOTO_MAX_BYTES + _MARGEN_MULTIPART
+        elif ruta.endswith("/adjunto"):
+            limite = settings.SOLICITUD_ADJUNTO_MAX_BYTES + _MARGEN_MULTIPART
     contenido = request.headers.get("content-length")
     if contenido and contenido.isdigit() and int(contenido) > limite:
         return JSONResponse(

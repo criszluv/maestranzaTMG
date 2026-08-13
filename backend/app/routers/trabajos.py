@@ -5,6 +5,9 @@ Módulo de trabajos realizados a clientes. Solo RRHH y Admin.
   GET    /trabajos          lista con filtros (cliente, texto, rango de fechas)
   POST   /trabajos          registra un trabajo
   PUT    /trabajos/{id}     corrige un trabajo
+  POST   /trabajos/{id}/a-pendiente
+                            corrige el cobro: mueve el trabajo a pagos
+                            pendientes (deja de estar pagado)
   DELETE /trabajos/{id}     SOLO admin (borrar un registro comercial es
                             excepcional: queda en la auditoría con actor)
 
@@ -22,7 +25,9 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.dependencies import require_roles
 from app.models import Cliente, Trabajo, User
+from app.schemas.factura import FacturaOut
 from app.schemas.trabajo import TrabajoCreate, TrabajoOut, TrabajoUpdate
+from app.services.comercial import trabajo_a_factura
 from app.services.privacidad import fijar_actor_auditoria
 
 logger = logging.getLogger(__name__)
@@ -125,6 +130,42 @@ def actualizar_trabajo(
     nombre = db.query(Cliente.nombre).filter(Cliente.id == trabajo.cliente_id).scalar()
     logger.info("Trabajos actualizar -> id=%s actor=%s", trabajo_id, actor.id)
     return _a_out(trabajo, nombre)
+
+
+@router.post("/{trabajo_id}/a-pendiente", response_model=FacturaOut, status_code=201)
+def pasar_trabajo_a_pendiente(
+    trabajo_id: int,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_roles("rrhh")),
+) -> FacturaOut:
+    """
+    Corrige el cobro: el trabajo deja de estar pagado y pasa a Pagos
+    pendientes como factura por cobrar (se conserva cliente, monto, fecha y
+    detalle). Si el trabajo nació del cierre de un pedido, ese pedido queda
+    marcado como 'pendiente'.
+
+    La fila se bloquea (FOR UPDATE) para que dos usuarios simultáneos no
+    generen dos facturas; todo ocurre en una sola transacción.
+    """
+    trabajo = (
+        db.query(Trabajo).filter(Trabajo.id == trabajo_id).with_for_update().first()
+    )
+    if trabajo is None:
+        raise HTTPException(status_code=404, detail="Trabajo no encontrado")
+
+    fijar_actor_auditoria(db, actor)
+    factura = trabajo_a_factura(db, trabajo)
+    db.commit()
+    db.refresh(factura)
+
+    nombre = db.query(Cliente.nombre).filter(Cliente.id == factura.cliente_id).scalar()
+    logger.info(
+        "Trabajos -> pendiente: trabajo=%s factura=%s actor=%s",
+        trabajo_id, factura.id, actor.id,
+    )
+    salida = FacturaOut.model_validate(factura)
+    salida.cliente_nombre = nombre
+    return salida
 
 
 @router.delete("/{trabajo_id}", status_code=204)

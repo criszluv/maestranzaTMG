@@ -8,6 +8,8 @@ Módulo de pagos pendientes (facturas por cobrar). Solo RRHH y Admin.
   PUT    /facturas/{id}        corrige datos / vincula-desvincula cliente
   POST   /facturas/{id}/pagar    marca pagada (fecha de pago hoy u opcional)
   POST   /facturas/{id}/reabrir  vuelve a pendiente (pago mal marcado)
+  POST   /facturas/{id}/a-trabajo  la mueve al historial de trabajos
+                                   realizados (se dio por pagada)
   DELETE /facturas/{id}        SOLO admin (registro erróneo; queda auditado)
 
 Diseño híbrido: `cliente_texto` conserva el nombre digitado; `cliente_id` es
@@ -26,6 +28,8 @@ from app.db import get_db
 from app.dependencies import require_roles
 from app.models import Cliente, Factura, User
 from app.schemas.factura import FacturaCreate, FacturaOut, FacturaUpdate
+from app.schemas.trabajo import TrabajoOut
+from app.services.comercial import factura_a_trabajo
 from app.services.privacidad import fijar_actor_auditoria
 
 logger = logging.getLogger(__name__)
@@ -200,6 +204,45 @@ def reabrir_factura(
     )
     logger.info("Facturas reabrir -> id=%s actor=%s", factura_id, actor.id)
     return _a_out(factura, nombre)
+
+
+@router.post("/{factura_id}/a-trabajo", response_model=TrabajoOut, status_code=201)
+def pasar_factura_a_trabajo(
+    factura_id: int,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_roles("rrhh")),
+) -> TrabajoOut:
+    """
+    La factura se dio por pagada y pasa al historial de Trabajos realizados
+    (se conserva cliente, monto, fecha y nota). Si nació del cierre de un
+    pedido, ese pedido queda marcado como 'pagado'.
+
+    La fila se bloquea (FOR UPDATE) para que dos usuarios simultáneos no
+    generen dos trabajos; todo ocurre en una sola transacción.
+    """
+    factura = (
+        db.query(Factura).filter(Factura.id == factura_id).with_for_update().first()
+    )
+    if factura is None:
+        raise HTTPException(status_code=404, detail="Factura no encontrada")
+
+    fijar_actor_auditoria(db, actor)
+    try:
+        trabajo = factura_a_trabajo(db, factura)
+    except ValueError as e:
+        # Falta el vínculo al cliente real: mensaje accionable para el usuario.
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    db.commit()
+    db.refresh(trabajo)
+
+    nombre = db.query(Cliente.nombre).filter(Cliente.id == trabajo.cliente_id).scalar()
+    logger.info(
+        "Facturas -> trabajo: factura=%s trabajo=%s actor=%s",
+        factura_id, trabajo.id, actor.id,
+    )
+    salida = TrabajoOut.model_validate(trabajo)
+    salida.cliente_nombre = nombre
+    return salida
 
 
 @router.delete("/{factura_id}", status_code=204)

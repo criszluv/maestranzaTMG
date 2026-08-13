@@ -30,6 +30,9 @@ import { AdjuntoSolicitud } from './AdjuntoSolicitud'
 
 type Filtro = 'Todas' | 'Pendiente' | 'Aprobada' | 'Rechazada'
 
+/** Solicitudes por página: la lista completa crece sin parar. */
+const POR_PAGINA = 5
+
 const FILTROS = [
   { valor: 'Todas' as Filtro, etiqueta: 'Todas' },
   { valor: 'Pendiente' as Filtro, etiqueta: 'Pendientes' },
@@ -45,6 +48,7 @@ export function GestionSolicitudesView() {
   const [cargando, setCargando] = useState(true)
   const [refrescando, setRefrescando] = useState(false)
   const [filtro, setFiltro] = useState<Filtro>('Pendiente')
+  const [pagina, setPagina] = useState(1)
   const [procesando, setProcesando] = useState<number | null>(null)
 
   const cargar = useCallback(async () => {
@@ -68,9 +72,18 @@ export function GestionSolicitudesView() {
     setRefrescando(false)
   }, [cargar])
 
-  const visibles = useMemo(
+  const filtradas = useMemo(
     () => (filtro === 'Todas' ? solicitudes : solicitudes.filter((s) => s.estado === filtro)),
     [solicitudes, filtro],
+  )
+
+  // El historial completo es largo: se muestra de a POR_PAGINA con
+  // navegación, para no scrollear indefinidamente en el teléfono.
+  const totalPaginas = Math.max(1, Math.ceil(filtradas.length / POR_PAGINA))
+  const paginaActual = Math.min(pagina, totalPaginas)
+  const visibles = filtradas.slice(
+    (paginaActual - 1) * POR_PAGINA,
+    paginaActual * POR_PAGINA,
   )
 
   const pendientes = solicitudes.filter((s) => s.estado === 'Pendiente').length
@@ -112,7 +125,14 @@ export function GestionSolicitudesView() {
 
       <View style={styles.filtros}>
         <View style={{ flex: 1 }}>
-          <Selector valor={filtro} opciones={FILTROS} onChange={setFiltro} />
+          <Selector
+            valor={filtro}
+            opciones={FILTROS}
+            onChange={(f) => {
+              setFiltro(f)
+              setPagina(1) // al cambiar de filtro se vuelve al inicio
+            }}
+          />
         </View>
         <Boton
           titulo="Saldos"
@@ -184,6 +204,31 @@ export function GestionSolicitudesView() {
           </Card>
         ))
       )}
+
+      {/* Navegación entre páginas */}
+      {filtradas.length > POR_PAGINA && (
+        <View style={styles.paginador}>
+          <Boton
+            titulo="Anterior"
+            icono="chevron-back"
+            variante="secundario"
+            compacto
+            deshabilitado={paginaActual <= 1}
+            onPress={() => setPagina(paginaActual - 1)}
+          />
+          <Text style={styles.paginaTexto}>
+            {paginaActual} / {totalPaginas}
+          </Text>
+          <Boton
+            titulo="Siguiente"
+            icono="chevron-forward"
+            variante="secundario"
+            compacto
+            deshabilitado={paginaActual >= totalPaginas}
+            onPress={() => setPagina(paginaActual + 1)}
+          />
+        </View>
+      )}
     </Pantalla>
   )
 }
@@ -191,6 +236,13 @@ export function GestionSolicitudesView() {
 const styles = StyleSheet.create({
   fila: { flexDirection: 'row', flexWrap: 'wrap', gap: space.s2 },
   filtros: { flexDirection: 'row', gap: space.s3, alignItems: 'center' },
+  paginador: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: space.s3,
+  },
+  paginaTexto: { fontSize: fontSize.sm, color: colors.text3, fontWeight: '600' },
   cabecera: {
     flexDirection: 'row',
     alignItems: 'flex-start',

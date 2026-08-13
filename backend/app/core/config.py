@@ -99,9 +99,10 @@ class Settings:
     VACACIONES_TIPO: str = os.getenv("VACACIONES_TIPO", "Vacaciones")
 
     # --- Adjunto de solicitudes (1 foto-documento por solicitud) ---
+    # Mismo bucket y mismo criterio que las fotos de pedidos (ver FOTO_MAX_BYTES).
     SOLICITUD_ADJUNTO_MAX_BYTES: int = _get_int(
-        "SOLICITUD_ADJUNTO_MAX_BYTES", 5 * 1024 * 1024
-    )  # 5 MB
+        "SOLICITUD_ADJUNTO_MAX_BYTES", 50 * 1024 * 1024
+    )  # 50 MB
 
     # --- Seguridad de cuentas ---
     PASSWORD_MIN_LARGO: int = _get_int("PASSWORD_MIN_LARGO", 8)
@@ -166,7 +167,12 @@ class Settings:
     SUPABASE_URL: str | None = os.getenv("SUPABASE_URL")
     SUPABASE_SERVICE_ROLE_KEY: str | None = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
     FOTOS_BUCKET: str = os.getenv("FOTOS_BUCKET", "pedidos-fotos")
-    FOTO_MAX_BYTES: int = _get_int("FOTO_MAX_BYTES", 5 * 1024 * 1024)      # 5 MB
+    # Tamaño máximo por imagen. DEBE ir alineado con el límite del bucket en
+    # Supabase (hoy 50 MB): el backend es la primera barrera, así que si aquí
+    # queda más bajo, subir el bucket no tiene ningún efecto.
+    # Las apps cliente reducen la foto antes de subirla, así que en la
+    # práctica se transfieren cientos de KB, no 50 MB.
+    FOTO_MAX_BYTES: int = _get_int("FOTO_MAX_BYTES", 50 * 1024 * 1024)     # 50 MB
     FOTO_MAX_POR_PEDIDO: int = _get_int("FOTO_MAX_POR_PEDIDO", 10)
     FOTO_URL_EXPIRA_SEGUNDOS: int = _get_int("FOTO_URL_EXPIRA_SEGUNDOS", 3600)
     STORAGE_TIMEOUT_SEGUNDOS: int = _get_int("STORAGE_TIMEOUT_SEGUNDOS", 30)

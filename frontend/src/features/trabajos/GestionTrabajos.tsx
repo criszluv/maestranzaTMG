@@ -15,6 +15,7 @@ import {
   crearTrabajo,
   eliminarTrabajo,
   getTrabajos,
+  pasarTrabajoAPendiente,
   type EstadoTrabajo,
   type Trabajo,
   type TrabajoPayload,
@@ -82,6 +83,23 @@ export default function GestionTrabajos() {
     }),
     [trabajos],
   )
+
+  // Corrige el cobro: el trabajo no estaba pagado -> pasa a Pagos pendientes.
+  const handleAPendiente = async (t: Trabajo) => {
+    const ok = await confirm({
+      title: 'Marcar como pago pendiente',
+      message: `"${t.detalle.slice(0, 60)}" de ${t.cliente_nombre ?? 'cliente'} saldrá de Trabajos realizados y quedará en Pagos pendientes como factura por cobrar${t.valor != null ? ` por $${t.valor.toLocaleString('es-CL')}` : ''}. ¿Continuar?`,
+      confirmText: 'Pasar a pendiente',
+    })
+    if (!ok) return
+    try {
+      await pasarTrabajoAPendiente(t.id)
+      await cargar()
+      notify('Movido a Pagos pendientes.', 'success')
+    } catch (e) {
+      notify(e instanceof Error ? e.message : 'No se pudo mover el trabajo.', 'error')
+    }
+  }
 
   const handleEliminar = async (t: Trabajo) => {
     const ok = await confirm({
@@ -228,6 +246,13 @@ export default function GestionTrabajos() {
                           onClick={() => setEditando(t)}
                         >
                           Editar
+                        </button>
+                        <button
+                          className="action-btn btn-approve"
+                          title="No estaba pagado: moverlo a Pagos pendientes"
+                          onClick={() => void handleAPendiente(t)}
+                        >
+                          A pendiente
                         </button>
                         {esAdmin && (
                           <button

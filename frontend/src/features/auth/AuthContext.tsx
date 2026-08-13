@@ -19,6 +19,36 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 const USER_KEY = 'usuario_portal'
 
+// ---------------------------------------------------------------------------
+//  CIERRE DE SESIÓN POR INACTIVIDAD
+// ---------------------------------------------------------------------------
+// Los equipos del taller y de la oficina son compartidos: si alguien deja la
+// sesión abierta y se va, cualquiera podría seguir operando con su identidad
+// (y todo quedaría auditado a su nombre). Tras este tiempo sin interacción la
+// sesión se cierra sola, en el cliente. El token del servidor sigue teniendo
+// su propia expiración (ACCESS_TOKEN_EXPIRE_MINUTES), que es la barrera real.
+const ACTIVIDAD_KEY = 'ultima_actividad_portal'
+const MINUTOS_INACTIVIDAD = 30
+const MS_INACTIVIDAD = MINUTOS_INACTIVIDAD * 60 * 1000
+
+function marcarActividad(): void {
+  try {
+    localStorage.setItem(ACTIVIDAD_KEY, String(Date.now()))
+  } catch {
+    // Modo privado o storage lleno: no es crítico.
+  }
+}
+
+/** true si pasó más de MINUTOS_INACTIVIDAD desde la última interacción. */
+function sesionVencidaPorInactividad(): boolean {
+  try {
+    const ultima = Number(localStorage.getItem(ACTIVIDAD_KEY) ?? 0)
+    return ultima > 0 && Date.now() - ultima > MS_INACTIVIDAD
+  } catch {
+    return false
+  }
+}
+
 function getInitialUser(): User | null {
   if (typeof window === 'undefined') return null
   const stored = localStorage.getItem(USER_KEY)
@@ -41,6 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     clearToken()
     try {
       localStorage.removeItem(USER_KEY)
+      localStorage.removeItem(ACTIVIDAD_KEY)
     } catch (error) {
       console.error('No se pudo limpiar la sesión de localStorage', error)
     }
@@ -52,6 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setToken(data.access_token)
       setTokenState(data.access_token)
       setUser(data.user)
+      marcarActividad()
       try {
         localStorage.setItem(USER_KEY, JSON.stringify(data.user))
       } catch (error) {
@@ -73,6 +105,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // refrescamos los datos del usuario (por si cambió su rol/estado).
   useEffect(() => {
     if (!getToken()) return
+    // Se abandonó el equipo con la sesión abierta: no se rehidrata.
+    if (sesionVencidaPorInactividad()) {
+      logout()
+      return
+    }
     getMe()
       .then((u) => {
         setUser(u)
@@ -81,7 +118,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .catch(() => {
         // Un 401 ya disparó el logout vía evento; otros errores los ignoramos.
       })
-  }, [])
+  }, [logout])
+
+  // Vigilancia de inactividad mientras hay sesión: cada interacción renueva
+  // el contador y un chequeo periódico (o al volver a la pestaña) cierra la
+  // sesión si se pasó del límite.
+  useEffect(() => {
+    if (!user) return
+
+    const revisar = () => {
+      if (sesionVencidaPorInactividad()) logout()
+    }
+    const eventos = ['mousedown', 'keydown', 'scroll', 'touchstart'] as const
+
+    marcarActividad()
+    eventos.forEach((e) =>
+      window.addEventListener(e, marcarActividad, { passive: true }),
+    )
+    document.addEventListener('visibilitychange', revisar)
+    const intervalo = window.setInterval(revisar, 60_000)
+
+    return () => {
+      eventos.forEach((e) => window.removeEventListener(e, marcarActividad))
+      document.removeEventListener('visibilitychange', revisar)
+      window.clearInterval(intervalo)
+    }
+  }, [user, logout])
 
   return (
     <AuthContext.Provider value={{ user, token, login, logout }}>

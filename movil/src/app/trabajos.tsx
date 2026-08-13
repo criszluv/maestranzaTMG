@@ -10,6 +10,7 @@ import {
   crearTrabajo,
   eliminarTrabajo,
   getTrabajos,
+  pasarTrabajoAPendiente,
   type EstadoTrabajo,
   type Trabajo,
 } from '../api/trabajos'
@@ -189,6 +190,25 @@ function TrabajosContenido() {
     }
   }
 
+  // Corrige el cobro: el trabajo no estaba pagado -> pasa a Pagos pendientes.
+  const handleAPendiente = async (t: Trabajo) => {
+    const ok = await confirm({
+      titulo: 'Marcar como pago pendiente',
+      mensaje: `Saldrá de Trabajos realizados y quedará por cobrar en Pagos pendientes${
+        t.valor !== null && t.valor !== undefined ? ` (${formatearCLP(t.valor)})` : ''
+      }.`,
+      textoConfirmar: 'Pasar a pendiente',
+    })
+    if (!ok) return
+    try {
+      await pasarTrabajoAPendiente(t.id)
+      notify('Movido a Pagos pendientes.', 'success')
+      await cargar()
+    } catch (e) {
+      notify(e instanceof Error ? e.message : 'No se pudo mover el trabajo.', 'error')
+    }
+  }
+
   const handleEliminar = async (t: Trabajo) => {
     const ok = await confirm({
       titulo: 'Eliminar trabajo',
@@ -257,6 +277,13 @@ function TrabajosContenido() {
                 variante="secundario"
                 compacto
                 onPress={() => abrirEdicion(t)}
+              />
+              <Boton
+                titulo="A pendiente"
+                icono="cash-outline"
+                variante="secundario"
+                compacto
+                onPress={() => void handleAPendiente(t)}
               />
               {user?.rol === 'admin' && (
                 <Boton

@@ -3,7 +3,7 @@
 // calendario de ausencias. El historial de marcaje vive en su propia
 // sección (/rrhh/asistencia), enlazada desde el encabezado y el navbar.
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import Calendar from 'react-calendar'
 import 'react-calendar/dist/Calendar.css'
@@ -15,11 +15,17 @@ import {
 } from './api'
 import AdjuntoSolicitud from './AdjuntoSolicitud'
 import SaldosVacaciones from './SaldosVacaciones'
+import Paginador from '../../components/common/Paginador'
 import { useConfirm } from '../../components/common/ConfirmDialog'
 import { useToast } from '../../components/common/Toast'
 
 type CalendarView = 'month' | 'year' | 'decade' | 'century'
 type EstadoSolicitud = 'Pendiente' | 'Aprobada' | 'Rechazada'
+type FiltroEstado = 'Todas' | EstadoSolicitud
+
+/** El historial completo es largo: se pagina para que la vista sea usable. */
+const POR_PAGINA = 5
+const FILTROS: FiltroEstado[] = ['Todas', 'Pendiente', 'Aprobada', 'Rechazada']
 
 export default function GestionSolicitudesRRHH() {
   const confirm = useConfirm()
@@ -27,6 +33,8 @@ export default function GestionSolicitudesRRHH() {
 
   const [solicitudes, setSolicitudes] = useState<Solicitud[]>([])
   const [loading, setLoading] = useState(true)
+  const [filtro, setFiltro] = useState<FiltroEstado>('Todas')
+  const [pagina, setPagina] = useState(1)
 
   const cargarSolicitudes = useCallback(async () => {
     setLoading(true)
@@ -75,6 +83,25 @@ export default function GestionSolicitudesRRHH() {
   const totalSolicitudes = solicitudes.length
   const pendientes = solicitudes.filter((s) => s.estado === 'Pendiente').length
   const aprobadas = solicitudes.filter((s) => s.estado === 'Aprobada').length
+
+  // --- FILTRO + PAGINACIÓN (el calendario sigue usando la lista completa) ---
+  const filtradas = useMemo(
+    () => (filtro === 'Todas' ? solicitudes : solicitudes.filter((s) => s.estado === filtro)),
+    [solicitudes, filtro],
+  )
+
+  // Si al aprobar/filtrar la página actual se queda sin filas, se retrocede.
+  const totalPaginas = Math.max(1, Math.ceil(filtradas.length / POR_PAGINA))
+  const paginaActual = Math.min(pagina, totalPaginas)
+  const visibles = filtradas.slice(
+    (paginaActual - 1) * POR_PAGINA,
+    paginaActual * POR_PAGINA,
+  )
+
+  const cambiarFiltro = (nuevo: FiltroEstado) => {
+    setFiltro(nuevo)
+    setPagina(1)
+  }
 
   const renderBadge = (estado: EstadoSolicitud) => {
     let clase = 'badge-pendiente'
@@ -138,14 +165,50 @@ export default function GestionSolicitudesRRHH() {
         {/* COLUMNA IZQUIERDA: Solicitudes */}
         <div className="column">
           <div className="card">
-            <h3 className="card-title">Solicitudes pendientes</h3>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 10,
+                flexWrap: 'wrap',
+                marginBottom: 12,
+              }}
+            >
+              <h3 className="card-title" style={{ margin: 0 }}>Solicitudes</h3>
+
+              {/* Filtro rápido: el historial completo crece sin parar */}
+              <div style={{ display: 'flex', gap: 4 }}>
+                {FILTROS.map((f) => (
+                  <button
+                    key={f}
+                    type="button"
+                    onClick={() => cambiarFiltro(f)}
+                    style={{
+                      padding: '5px 10px',
+                      borderRadius: 'var(--radius-full)',
+                      border: `1px solid ${filtro === f ? 'var(--primary)' : 'var(--border)'}`,
+                      background: filtro === f ? 'var(--primary-soft)' : 'var(--surface)',
+                      color: filtro === f ? 'var(--primary)' : 'var(--text-3)',
+                      fontSize: 12,
+                      fontWeight: filtro === f ? 700 : 500,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {f}
+                  </button>
+                ))}
+              </div>
+            </div>
 
             <div className="table-container">
               {loading && solicitudes.length === 0 ? (
                 <p style={{ textAlign: 'center' }}>Cargando datos...</p>
-              ) : solicitudes.length === 0 ? (
+              ) : filtradas.length === 0 ? (
                 <p style={{ textAlign: 'center', opacity: 0.5 }}>
-                  No hay solicitudes registradas.
+                  {solicitudes.length === 0
+                    ? 'No hay solicitudes registradas.'
+                    : `No hay solicitudes en "${filtro}".`}
                 </p>
               ) : (
                 <table className="rrhh-table">
@@ -159,7 +222,7 @@ export default function GestionSolicitudesRRHH() {
                     </tr>
                   </thead>
                   <tbody>
-                    {solicitudes.map((s) => (
+                    {visibles.map((s) => (
                       <tr key={s.id}>
                         <td style={{ fontWeight: 'bold' }}>
                           {s.nombre_trabajador || 'Usuario desconocido'}
@@ -219,6 +282,14 @@ export default function GestionSolicitudesRRHH() {
                 </table>
               )}
             </div>
+
+            <Paginador
+              pagina={paginaActual}
+              totalItems={filtradas.length}
+              porPagina={POR_PAGINA}
+              onCambiar={setPagina}
+              etiqueta="solicitudes"
+            />
           </div>
         </div>
 

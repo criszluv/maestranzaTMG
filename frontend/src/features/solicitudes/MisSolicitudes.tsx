@@ -18,7 +18,7 @@ import { useToast } from '../../components/common/Toast'
 type CalendarView = 'month' | 'year' | 'decade' | 'century'
 
 const TIPO_VACACIONES = 'Vacaciones'
-const MAX_ADJUNTO_MB = 5
+const MAX_ADJUNTO_MB = 50
 
 /** Días hábiles (lun-vie) en [inicio, fin]; espeja el backend. */
 function diasHabiles(inicioISO: string, finISO: string): number {

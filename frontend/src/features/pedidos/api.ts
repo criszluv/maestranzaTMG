@@ -1,7 +1,7 @@
 // src/features/pedidos/api.ts
 // API del módulo de pedidos (órdenes de trabajo).
 
-import { API_BASE_URL, authHeaders, request } from '../../services/http'
+import { API_BASE_URL, authHeaders, errorDeRespuesta, request } from '../../services/http'
 
 export type EstadoPedido = 'pendiente' | 'en proceso' | 'terminado'
 
@@ -144,14 +144,7 @@ export async function subirFoto(pedidoId: number, archivo: File): Promise<FotoPe
     body: form,
   })
   if (!res.ok) {
-    let detail = 'No se pudo subir la imagen.'
-    try {
-      const data = (await res.json()) as { detail?: unknown }
-      if (typeof data.detail === 'string') detail = data.detail
-    } catch {
-      // sin cuerpo JSON: mensaje genérico
-    }
-    throw new Error(detail)
+    throw await errorDeRespuesta(res, 'No se pudo subir la imagen.')
   }
   return res.json() as Promise<FotoPedido>
 }

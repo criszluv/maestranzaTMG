@@ -11,6 +11,7 @@ import {
   eliminarFactura,
   getFacturas,
   pagarFactura,
+  pasarFacturaATrabajo,
   reabrirFactura,
   type EstadoFactura,
   type Factura,
@@ -202,6 +203,25 @@ function PagosContenido() {
     }
   }
 
+  // El cobro se concretó: pasa al historial de Trabajos realizados.
+  const handleATrabajo = async (f: Factura) => {
+    const ok = await confirm({
+      titulo: 'Pasar a trabajos realizados',
+      mensaje: `${f.cliente_nombre ?? f.cliente_texto}${
+        f.numero ? ` · N°${f.numero}` : ''
+      } saldrá de Pagos pendientes y quedará como trabajo realizado (pagado).`,
+      textoConfirmar: 'Pasar a trabajos',
+    })
+    if (!ok) return
+    try {
+      await pasarFacturaATrabajo(f.id)
+      notify('Movida a Trabajos realizados.', 'success')
+      await cargar()
+    } catch (e) {
+      notify(e instanceof Error ? e.message : 'No se pudo mover la factura.', 'error')
+    }
+  }
+
   const reabrir = async (f: Factura) => {
     const ok = await confirm({
       titulo: 'Reabrir factura',
@@ -320,6 +340,13 @@ function PagosContenido() {
                   onPress={() => void reabrir(f)}
                 />
               )}
+              <Boton
+                titulo="A trabajos"
+                icono="hammer-outline"
+                variante="secundario"
+                compacto
+                onPress={() => void handleATrabajo(f)}
+              />
               {user?.rol === 'admin' && (
                 <Boton
                   titulo="Eliminar"

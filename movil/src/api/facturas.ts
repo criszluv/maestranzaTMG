@@ -3,6 +3,7 @@
 // Espejo de frontend/src/features/facturas/api.ts.
 
 import { request } from '../services/http'
+import type { Trabajo } from './trabajos'
 
 export type EstadoFactura = 'pendiente' | 'pagada'
 
@@ -67,4 +68,13 @@ export async function reabrirFactura(id: number): Promise<Factura> {
 /** Solo admin (registros erróneos; queda auditado). */
 export async function eliminarFactura(id: number): Promise<void> {
   return request<void>(`/facturas/${id}`, { method: 'DELETE' })
+}
+
+/**
+ * La factura se dio por pagada y pasa al historial de Trabajos realizados.
+ * Si venía del cierre de un pedido, ese pedido queda marcado como 'pagado'.
+ * Requiere que la factura tenga un cliente de la cartera vinculado.
+ */
+export async function pasarFacturaATrabajo(id: number): Promise<Trabajo> {
+  return request<Trabajo>(`/facturas/${id}/a-trabajo`, { method: 'POST' })
 }
