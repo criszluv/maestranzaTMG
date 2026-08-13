@@ -10,7 +10,6 @@ import {
   crearFactura,
   eliminarFactura,
   getFacturas,
-  pagarFactura,
   pasarFacturaATrabajo,
   reabrirFactura,
   type EstadoFactura,
@@ -185,40 +184,36 @@ function PagosContenido() {
     }
   }
 
+  /**
+   * Cobrar una factura = el trabajo quedó pagado, así que sale de Pagos
+   * pendientes y pasa al historial de Trabajos realizados. Es la única
+   * lectura de "pagado" en el sistema: no existe un limbo de facturas
+   * pagadas que no aparecen en ninguna parte.
+   */
   const marcarPagada = async (f: Factura) => {
+    if (f.cliente_id === null || f.cliente_id === undefined) {
+      // Un trabajo realizado necesita cliente de la cartera.
+      notify(
+        `"${f.cliente_texto}" no está vinculada a un cliente de la cartera. ` +
+          'Usa Editar para seleccionarlo y luego márcala como pagada.',
+        'error',
+      )
+      return
+    }
     const ok = await confirm({
       titulo: 'Marcar como pagada',
       mensaje: `Factura ${f.numero ? `N° ${f.numero} ` : ''}de ${f.cliente_nombre ?? f.cliente_texto}${
         f.monto ? ` por ${formatearCLP(f.monto)}` : ''
-      }.`,
+      }. Saldrá de Pagos pendientes y quedará en Trabajos realizados.`,
       textoConfirmar: 'Marcar pagada',
     })
     if (!ok) return
     try {
-      await pagarFactura(f.id)
-      notify('Factura marcada como pagada.', 'success')
+      await pasarFacturaATrabajo(f.id)
+      notify('Cobrada: quedó en Trabajos realizados.', 'success')
       await cargar()
     } catch (e) {
       notify(e instanceof Error ? e.message : 'No se pudo actualizar la factura.', 'error')
-    }
-  }
-
-  // El cobro se concretó: pasa al historial de Trabajos realizados.
-  const handleATrabajo = async (f: Factura) => {
-    const ok = await confirm({
-      titulo: 'Pasar a trabajos realizados',
-      mensaje: `${f.cliente_nombre ?? f.cliente_texto}${
-        f.numero ? ` · N°${f.numero}` : ''
-      } saldrá de Pagos pendientes y quedará como trabajo realizado (pagado).`,
-      textoConfirmar: 'Pasar a trabajos',
-    })
-    if (!ok) return
-    try {
-      await pasarFacturaATrabajo(f.id)
-      notify('Movida a Trabajos realizados.', 'success')
-      await cargar()
-    } catch (e) {
-      notify(e instanceof Error ? e.message : 'No se pudo mover la factura.', 'error')
     }
   }
 
@@ -332,21 +327,24 @@ function PagosContenido() {
                   onPress={() => void marcarPagada(f)}
                 />
               ) : (
-                <Boton
-                  titulo="Reabrir"
-                  icono="refresh-outline"
-                  variante="secundario"
-                  compacto
-                  onPress={() => void reabrir(f)}
-                />
+                <>
+                  {/* Facturas antiguas marcadas 'pagada' antes de unificar
+                      el criterio: migrarlas al historial o devolverlas. */}
+                  <Boton
+                    titulo="A trabajos"
+                    icono="hammer-outline"
+                    compacto
+                    onPress={() => void marcarPagada(f)}
+                  />
+                  <Boton
+                    titulo="Reabrir"
+                    icono="refresh-outline"
+                    variante="secundario"
+                    compacto
+                    onPress={() => void reabrir(f)}
+                  />
+                </>
               )}
-              <Boton
-                titulo="A trabajos"
-                icono="hammer-outline"
-                variante="secundario"
-                compacto
-                onPress={() => void handleATrabajo(f)}
-              />
               {user?.rol === 'admin' && (
                 <Boton
                   titulo="Eliminar"

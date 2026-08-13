@@ -18,7 +18,6 @@ import {
   crearFactura,
   eliminarFactura,
   getFacturas,
-  pagarFactura,
   pasarFacturaATrabajo,
   reabrirFactura,
   type EstadoFactura,
@@ -102,17 +101,33 @@ export default function PagosPendientes() {
     }
   }, [facturas])
 
+  /**
+   * Cobrar una factura = el trabajo quedó pagado, así que sale de Pagos
+   * pendientes y pasa al historial de Trabajos realizados. Es la única
+   * lectura de "pagado" en el sistema: no existe un limbo de facturas
+   * pagadas que no aparecen en ninguna parte.
+   */
   const handlePagar = async (f: Factura) => {
+    if (f.cliente_id == null) {
+      // Un trabajo realizado necesita cliente de la cartera. Se avisa antes
+      // de intentarlo para que la corrección sea evidente.
+      notify(
+        `"${f.cliente_texto}" no está vinculada a un cliente de la cartera. ` +
+          'Usa Editar para seleccionarlo y luego márcala como pagada.',
+        'error',
+      )
+      return
+    }
     const ok = await confirm({
-      title: 'Marcar factura como pagada',
-      message: `Factura ${f.numero ? `N°${f.numero} ` : ''}de ${f.cliente_nombre || f.cliente_texto} por ${pesos(f.monto)}. Se registrará pagada con fecha de hoy. ¿Continuar?`,
+      title: 'Marcar como pagada',
+      message: `Factura ${f.numero ? `N°${f.numero} ` : ''}de ${f.cliente_nombre || f.cliente_texto} por ${pesos(f.monto)}. Saldrá de Pagos pendientes y quedará registrada en Trabajos realizados. ¿Continuar?`,
       confirmText: 'Marcar pagada',
     })
     if (!ok) return
     try {
-      await pagarFactura(f.id)
+      await pasarFacturaATrabajo(f.id)
       await cargar()
-      notify('Factura marcada como pagada.', 'success')
+      notify('Cobrada: quedó en Trabajos realizados.', 'success')
     } catch (e) {
       notify(e instanceof Error ? e.message : 'No se pudo marcar como pagada.', 'error')
     }
@@ -132,24 +147,6 @@ export default function PagosPendientes() {
       notify('Factura reabierta como pendiente.', 'success')
     } catch (e) {
       notify(e instanceof Error ? e.message : 'No se pudo reabrir.', 'error')
-    }
-  }
-
-  // El cobro se concretó: la factura sale de aquí y pasa al historial de
-  // Trabajos realizados (necesita el cliente de la cartera vinculado).
-  const handleATrabajo = async (f: Factura) => {
-    const ok = await confirm({
-      title: 'Pasar a trabajos realizados',
-      message: `${f.cliente_nombre ?? f.cliente_texto}${f.numero ? ` · N°${f.numero}` : ''} saldrá de Pagos pendientes y quedará registrada como trabajo realizado (pagado). ¿Continuar?`,
-      confirmText: 'Pasar a trabajos',
-    })
-    if (!ok) return
-    try {
-      await pasarFacturaATrabajo(f.id)
-      await cargar()
-      notify('Movida a Trabajos realizados.', 'success')
-    } catch (e) {
-      notify(e instanceof Error ? e.message : 'No se pudo mover la factura.', 'error')
     }
   }
 
@@ -316,27 +313,32 @@ export default function PagosPendientes() {
                         {f.estado === 'pendiente' ? (
                           <button
                             className="action-btn btn-approve"
-                            title="Marcar como pagada"
+                            title="Cobrada: pasa a Trabajos realizados"
                             onClick={() => void handlePagar(f)}
                           >
                             Pagada
                           </button>
                         ) : (
-                          <button
-                            className="action-btn btn-reject"
-                            title="Volver a pendiente"
-                            onClick={() => void handleReabrir(f)}
-                          >
-                            Reabrir
-                          </button>
+                          <>
+                            {/* Facturas antiguas marcadas 'pagada' antes de
+                                unificar el criterio: se pueden migrar al
+                                historial o devolver a cobranza. */}
+                            <button
+                              className="action-btn btn-approve"
+                              title="Registrarla en Trabajos realizados"
+                              onClick={() => void handlePagar(f)}
+                            >
+                              A trabajos
+                            </button>
+                            <button
+                              className="action-btn btn-reject"
+                              title="Volver a pendiente"
+                              onClick={() => void handleReabrir(f)}
+                            >
+                              Reabrir
+                            </button>
+                          </>
                         )}
-                        <button
-                          className="action-btn btn-approve"
-                          title="Ya se cobró: moverla a Trabajos realizados"
-                          onClick={() => void handleATrabajo(f)}
-                        >
-                          A trabajos
-                        </button>
                         <button
                           className="action-btn btn-approve"
                           title="Editar / vincular cliente"
