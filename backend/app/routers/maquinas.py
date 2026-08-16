@@ -1,6 +1,10 @@
 # app/routers/maquinas.py
 """
-Máquinas de planta (activos monitoreados). Solo RRHH y Admin.
+Máquinas de planta (activos monitoreados).
+
+Ver: admin y empleados (trabajan con ellas).
+Crear / editar: solo admin — renombrar una máquina o cambiar sus RPM
+afecta la interpretación de toda su telemetría histórica.
 
   GET    /maquinas        lista con su última lectura y total de telemetría
   POST   /maquinas        registra una máquina
@@ -58,7 +62,7 @@ def _assert_nombre_libre(db: Session, nombre: str, excluir_id: int | None = None
 def listar_maquinas(
     incluir_bajas: bool = Query(default=False),
     db: Session = Depends(get_db),
-    _actor: User = Depends(require_roles("rrhh")),
+    _actor: User = Depends(require_roles("empleado")),
 ) -> List[MaquinaOut]:
     """Máquinas con el resumen de su telemetría (última lectura y volumen)."""
     consulta = db.query(Maquina)
@@ -93,7 +97,7 @@ def listar_maquinas(
 def crear_maquina(
     payload: MaquinaCreate,
     db: Session = Depends(get_db),
-    actor: User = Depends(require_roles("rrhh")),
+    actor: User = Depends(require_roles()),  # solo admin
 ) -> MaquinaOut:
     _assert_nombre_libre(db, payload.nombre)
 
@@ -116,7 +120,7 @@ def actualizar_maquina(
     maquina_id: int,
     payload: MaquinaUpdate,
     db: Session = Depends(get_db),
-    actor: User = Depends(require_roles("rrhh")),
+    actor: User = Depends(require_roles()),  # solo admin
 ) -> MaquinaOut:
     maquina = _maquina_o_404(db, maquina_id)
     datos = payload.model_dump(exclude_unset=True)

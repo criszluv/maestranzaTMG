@@ -1,5 +1,6 @@
 // src/features/maquinas/GestionMaquinas.tsx
-// Inventario de máquinas de planta (RRHH/Admin).
+// Inventario de máquinas de planta.
+// Lo consultan admin y empleados; solo el admin puede crear o editar.
 //
 // El campo importante es RPM NOMINAL: la frecuencia de giro define dónde
 // caen 1× y sus armónicos en el espectro de vibración. Sin ese dato, una
@@ -11,6 +12,7 @@ import '../../styles/App.css'
 import Modal from '../../components/common/Modal'
 import { EmptyState } from '../../components/common/EmptyState'
 import { useToast } from '../../components/common/Toast'
+import { useAuth } from '../auth/AuthContext'
 import {
   actualizarMaquina,
   crearMaquina,
@@ -57,6 +59,10 @@ function badgeEstado(estado: string) {
 
 export default function GestionMaquinas() {
   const notify = useToast()
+  const { user } = useAuth()
+  // Renombrar una máquina o cambiar sus RPM altera cómo se interpreta TODA
+  // su telemetría histórica: el empleado la consulta, el admin la mantiene.
+  const puedeEditar = user?.rol === 'admin'
 
   const [maquinas, setMaquinas] = useState<Maquina[]>([])
   const [loading, setLoading] = useState(true)
@@ -182,16 +188,18 @@ export default function GestionMaquinas() {
             />
             Mostrar máquinas dadas de baja
           </label>
-          <button
-            className="btn-primary"
-            onClick={abrirNueva}
-            style={{ borderRadius: 999, fontWeight: 600 }}
-          >
-            + Registrar máquina
-          </button>
+          {puedeEditar && (
+            <button
+              className="btn-primary"
+              onClick={abrirNueva}
+              style={{ borderRadius: 999, fontWeight: 600 }}
+            >
+              + Registrar máquina
+            </button>
+          )}
         </div>
 
-        {sinRpm > 0 && (
+        {sinRpm > 0 && puedeEditar && (
           <div
             style={{
               backgroundColor: 'var(--warning-soft)',
@@ -222,7 +230,7 @@ export default function GestionMaquinas() {
                   <th>RPM nominal</th>
                   <th>Telemetría</th>
                   <th>Estado</th>
-                  <th>Acciones</th>
+                  {puedeEditar && <th>Acciones</th>}
                 </tr>
               </thead>
               <tbody>
@@ -244,15 +252,17 @@ export default function GestionMaquinas() {
                       <div>última: {fechaCorta(m.ultima_lectura)}</div>
                     </td>
                     <td>{badgeEstado(String(m.estado))}</td>
-                    <td>
-                      <button
-                        className="action-btn btn-approve"
-                        title="Editar máquina"
-                        onClick={() => abrirEdicion(m)}
-                      >
-                        Editar
-                      </button>
-                    </td>
+                    {puedeEditar && (
+                      <td>
+                        <button
+                          className="action-btn btn-approve"
+                          title="Editar máquina"
+                          onClick={() => abrirEdicion(m)}
+                        >
+                          Editar
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

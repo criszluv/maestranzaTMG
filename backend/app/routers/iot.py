@@ -2,7 +2,8 @@
 """
 Módulo de sensores IoT (dashboard de máquinas + reportería CSV).
 
-Lecturas: cualquier usuario autenticado.
+Lecturas: admin y empleados (operación de planta). RRHH queda fuera:
+gestiona personas, no máquinas.
 Escrituras (crear / podar métricas): solo admin.
 """
 
@@ -17,15 +18,18 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.dependencies import get_current_user, require_roles
+from app.dependencies import require_roles
 from app.models import IotMetrica, Maquina
 from app.schemas.iot import MetricaCrear, MetricaRespuesta, ResumenPorMaquina
 from app.services.iot_metricas import PODA_MANUAL_POR_DEFECTO, podar_metricas
 
+# El monitoreo de planta es asunto de operaciones: lo ven admin y empleados.
+# RRHH gestiona personas, no máquinas, así que queda fuera (require_roles
+# siempre incluye a admin como superusuario).
 router = APIRouter(
     prefix="/iot",
     tags=["IoT"],
-    dependencies=[Depends(get_current_user)],
+    dependencies=[Depends(require_roles("empleado"))],
 )
 
 logger = logging.getLogger(__name__)

@@ -38,12 +38,18 @@ function seccionesPara(rol: 'admin' | 'rrhh' | 'empleado'): SeccionNav[] {
           { to: '/empleado/mis-pedidos', label: 'Mis pedidos', icon: 'pedidos' },
         ],
       },
+      {
+        titulo: 'Planta',
+        items: [
+          { to: '/empleado/maquinas', label: 'Máquinas', icon: 'panel' },
+        ],
+      },
       PRIVACIDAD,
     ]
   }
   if (rol === 'rrhh') {
+    // Sin Panel de planta ni Máquinas: RRHH gestiona personas, no el taller.
     return [
-      { titulo: null, items: [INICIO] },
       {
         titulo: 'Personas',
         items: [
@@ -61,7 +67,6 @@ function seccionesPara(rol: 'admin' | 'rrhh' | 'empleado'): SeccionNav[] {
       {
         titulo: 'Operación',
         items: [
-          { to: '/rrhh/maquinas', label: 'Máquinas', icon: 'panel' },
           { to: '/rrhh/clientes', label: 'Clientes', icon: 'usuarios' },
           { to: '/rrhh/trabajos', label: 'Trabajos', icon: 'pedidos' },
           { to: '/rrhh/pagos', label: 'Pagos pendientes', icon: 'solicitudes' },

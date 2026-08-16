@@ -1,7 +1,8 @@
 // src/features/auth/Login.tsx
 import { useState } from 'react'
-import { Navigate, useNavigate } from 'react-router-dom'
+import { Navigate } from 'react-router-dom'
 import { useAuth } from './AuthContext'
+import { rutaInicio } from '../../App'
 import '../../styles/App.css'
 
 function Login() {
@@ -11,7 +12,6 @@ function Login() {
   const [loading, setLoading] = useState(false)
 
   const { login, user } = useAuth()
-  const navigate = useNavigate()
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -20,7 +20,6 @@ function Login() {
 
     try {
       await login({ email, password })
-      navigate('/dashboard')
     } catch (err: unknown) {
       console.error(err)
       const message =
@@ -35,7 +34,7 @@ function Login() {
   // botón Atrás del navegador, y dejar un login "falso" a la vista confunde
   // (parece que cerraste sesión cuando en realidad sigue abierta).
   // `replace` evita que Atrás quede rebotando entre login y dashboard.
-  if (user) return <Navigate to="/dashboard" replace />
+  if (user) return <Navigate to={rutaInicio(user.rol)} replace />
 
   return (
     <div

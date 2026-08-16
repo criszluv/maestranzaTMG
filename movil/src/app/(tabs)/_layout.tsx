@@ -16,6 +16,9 @@ export default function TabsLayout() {
   if (!user) return <Redirect href="/login" />
 
   const esGestion = user.rol === 'rrhh' || user.rol === 'admin'
+  // El Panel de planta es de operaciones (admin y empleados). RRHH gestiona
+  // personas: el backend le responde 403, así que se le oculta la pestaña.
+  const veLaPlanta = user.rol !== 'rrhh'
 
   return (
     <Tabs
@@ -35,6 +38,7 @@ export default function TabsLayout() {
         options={{
           title: 'Panel de planta',
           tabBarLabel: 'Inicio',
+          href: veLaPlanta ? undefined : null,   // null = pestaña oculta
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="speedometer-outline" size={size} color={color} />
           ),

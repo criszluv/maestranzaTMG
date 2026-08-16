@@ -42,6 +42,15 @@ interface ProtectedRouteProps {
 }
 
 /**
+ * Pantalla de aterrizaje de cada rol. El Panel de planta es de operaciones
+ * (admin y empleados); RRHH trabaja con personas, así que su inicio son las
+ * solicitudes. Sin esto, un RRHH enviado a /dashboard rebotaría en bucle.
+ */
+export function rutaInicio(rol: Rol): string {
+  return rol === 'rrhh' ? '/rrhh/gestion' : '/dashboard'
+}
+
+/**
  * Segunda línea de defensa para la UX: la AUTORIZACIÓN real está en el
  * backend (JWT + require_roles); esto solo evita mostrar pantallas que el
  * usuario no podría usar.
@@ -54,9 +63,10 @@ const ProtectedRoute: FC<ProtectedRouteProps> = ({ children, rolRequerido }) => 
     return <Navigate to="/" replace />
   }
 
-  // 2. Si hay rol requerido y el usuario no lo cumple (y no es admin), va al dashboard
+  // 2. Si hay rol requerido y el usuario no lo cumple (y no es admin), lo
+  //    mandamos al inicio que SÍ le corresponde.
   if (rolRequerido && user.rol !== rolRequerido && user.rol !== 'admin') {
-    return <Navigate to="/dashboard" replace />
+    return <Navigate to={rutaInicio(user.rol)} replace />
   }
 
   // 3. Usuario autenticado y autorizado -> renderizamos la vista
@@ -77,11 +87,11 @@ export default function App() {
               {/* Login (ruta pública) */}
               <Route path="/" element={<Login />} />
 
-              {/* Dashboard común (sensores IoT) */}
+              {/* Panel de planta (sensores IoT): operaciones, no RRHH */}
               <Route
                 path="/dashboard"
                 element={
-                  <ProtectedRoute>
+                  <ProtectedRoute rolRequerido="empleado">
                     <DashboardSensores />
                   </ProtectedRoute>
                 }
@@ -129,14 +139,6 @@ export default function App() {
                 element={
                   <ProtectedRoute rolRequerido="rrhh">
                     <MisSolicitudes />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/rrhh/maquinas"
-                element={
-                  <ProtectedRoute rolRequerido="rrhh">
-                    <GestionMaquinas />
                   </ProtectedRoute>
                 }
               />
@@ -227,6 +229,14 @@ export default function App() {
                 element={
                   <ProtectedRoute rolRequerido="admin">
                     <GestionPedidos />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/empleado/maquinas"
+                element={
+                  <ProtectedRoute rolRequerido="empleado">
+                    <GestionMaquinas />
                   </ProtectedRoute>
                 }
               />

@@ -2,10 +2,12 @@
 // Panel de planta: dashboard de sensores IoT. Última lectura por máquina
 // + historial reciente. Se refresca solo cada 15 s y con pull-to-refresh.
 
+import { Redirect } from 'expo-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { descargarReporteCsv, fetchMetricas, type IotMetrica } from '../../api/sensores'
+import { useAuth } from '../../auth/AuthContext'
 import { useToast } from '../../components/Toast'
 import {
   Boton,
@@ -64,6 +66,7 @@ function ValorSensor({
 
 export default function PanelPlanta() {
   const notify = useToast()
+  const { user } = useAuth()
   const [metricas, setMetricas] = useState<IotMetrica[]>([])
   const [cargando, setCargando] = useState(true)
   const [refrescando, setRefrescando] = useState(false)
@@ -112,6 +115,9 @@ export default function PanelPlanta() {
       setExportando(false)
     }
   }
+
+  // RRHH no tiene acceso a la planta: se le manda a su pantalla de trabajo.
+  if (user?.rol === 'rrhh') return <Redirect href="/(tabs)/solicitudes" />
 
   if (cargando) return <Cargando />
 

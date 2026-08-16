@@ -807,6 +807,37 @@ def run():
     finally:
         dbm.close()
 
+    # Alcance por rol: la planta es de operaciones (admin + empleados).
+    # RRHH gestiona personas, así que no ve máquinas ni telemetría.
+    check("planta: empleado ve máquinas -> 200", client.get(
+        "/api/maquinas", headers=_auth(emp_token)).status_code == 200)
+    check("planta: rrhh NO ve máquinas -> 403", client.get(
+        "/api/maquinas", headers=_auth(rrhh_token)).status_code == 403)
+    check("planta: rrhh NO ve telemetría -> 403", client.get(
+        "/api/iot/metricas", headers=_auth(rrhh_token)).status_code == 403)
+    check("planta: admin ve telemetría -> 200", client.get(
+        "/api/iot/metricas", headers=_auth(admin_token)).status_code == 200)
+    # Editar una máquina cambia cómo se interpreta toda su historia: solo admin.
+    check("planta: empleado NO crea máquina -> 403", client.post(
+        "/api/maquinas", json={"nombre": "Prueba empleado"},
+        headers=_auth(emp_token)).status_code == 403)
+    r = client.post(
+        "/api/maquinas",
+        json={"nombre": "Rectificadora", "rpm_nominal": 2400, "ubicacion": "Nave 1"},
+        headers=_auth(admin_token),
+    )
+    check("planta: admin crea máquina -> 201",
+          r.status_code == 201 and r.json().get("rpm_nominal") == 2400)
+    check("planta: nombre duplicado -> 409", client.post(
+        "/api/maquinas", json={"nombre": "rectificadora"},
+        headers=_auth(admin_token)).status_code == 409)
+    check("planta: RPM inválidas -> 422", client.post(
+        "/api/maquinas", json={"nombre": "Otra", "rpm_nominal": 0},
+        headers=_auth(admin_token)).status_code == 422)
+    check("planta: admin corrige RPM -> 200", client.put(
+        f"/api/maquinas/{r.json()['id']}", json={"rpm_nominal": 2200},
+        headers=_auth(admin_token)).json().get("rpm_nominal") == 2200)
+
     check("mantenimiento: sin máquina -> 400", client.post(
         "/api/pedidos",
         json={"pedido": "Cambio de rodamiento", "tipo": "mantenimiento"},
