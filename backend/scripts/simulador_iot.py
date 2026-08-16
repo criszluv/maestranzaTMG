@@ -1,7 +1,15 @@
 # scripts/simulador_iot.py
 """
-Simulador de sensores IoT: inserta una métrica aleatoria cada 3 segundos y
-poda la tabla para mantener como máximo MAX_METRICAS filas.
+Simulador básico de sensores IoT: inserta una lectura cada 3 segundos.
+
+OJO: este script genera ruido aleatorio, sirve solo para tener datos en el
+dashboard. NO sirve para validar detección de anomalías, porque no tiene
+modelo físico ni etiquetas: no hay forma de saber si el detector acertó.
+El banco de pruebas con modos de degradación inyectables lo reemplaza
+(ver scripts/banco_pruebas.py).
+
+Ya NO poda la tabla: la historia se conserva y la retención la aplica la
+base de datos por antigüedad (fn_depurar_retencion, 90 días).
 
 Uso (desde la carpeta backend, con el venv activado):
     python scripts/simulador_iot.py      # Ctrl+C para detener
@@ -14,8 +22,7 @@ from datetime import datetime, timezone
 import _bootstrap  # noqa: F401  (agrega backend/ al sys.path)
 
 from app.db import SessionLocal
-from app.models import IotMetrica
-from app.services.iot_metricas import MAX_METRICAS, podar_metricas
+from app.models import IotMetrica, Maquina
 
 MAQUINAS = ["Plasma CNC", "Torno paralelo", "Fresadora", "Prensa hidráulica"]
 
@@ -23,11 +30,16 @@ MAQUINAS = ["Plasma CNC", "Torno paralelo", "Fresadora", "Prensa hidráulica"]
 def insertar_metrica_fake() -> None:
     db = SessionLocal()
     try:
+        nombre = random.choice(MAQUINAS)
+        maquina = db.query(Maquina).filter(Maquina.nombre == nombre).first()
+
         registro = IotMetrica(
-            maquina=random.choice(MAQUINAS),
+            maquina=nombre,
+            maquina_id=maquina.id if maquina else None,
             temperatura=round(random.uniform(25, 80), 1),
             humedad=round(random.uniform(30, 90), 1),
             consumo_kw=round(random.uniform(3, 15), 2),
+            calidad="ok",
             timestamp=datetime.now(timezone.utc),
         )
         db.add(registro)
@@ -38,11 +50,6 @@ def insertar_metrica_fake() -> None:
             f"[SIM IoT] Insertada id={registro.id} | {registro.maquina} | "
             f"T={registro.temperatura}°C H={registro.humedad}% kW={registro.consumo_kw}"
         )
-
-        # Poda automática (misma lógica que usa la API: app/services/iot_metricas.py)
-        borradas = podar_metricas(db, MAX_METRICAS)
-        if borradas > 0:
-            print(f"[SIM IoT] Limpieza automática: {borradas} filas antiguas eliminadas")
     finally:
         db.close()
 

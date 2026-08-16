@@ -35,13 +35,30 @@ class Pedido(Base):
         index=True,
     )
 
-    # Cliente al que se factura. NULL en los pedidos históricos; obligatorio
-    # para poder cerrar el pedido (ver más abajo).
+    # 'comercial'      -> se factura a un cliente (flujo original).
+    # 'mantenimiento'  -> nace de una anomalía de planta, apunta a una máquina
+    #                     y NO se factura: su cierre es 'interno'.
+    tipo: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        server_default=text("'comercial'"),
+        index=True,
+    )
+
+    # Cliente al que se factura. NULL en los pedidos históricos y en los de
+    # mantenimiento; obligatorio para cerrar un pedido comercial.
     cliente_id: Mapped[Optional[int]] = mapped_column(
         BigInteger,
         ForeignKey("clientes.id"),
         nullable=True,
         index=True,
+    )
+
+    # Máquina intervenida (solo en pedidos de mantenimiento).
+    maquina_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger,
+        ForeignKey("maquinas.id", ondelete="SET NULL"),
+        nullable=True,
     )
 
     # --- Cierre comercial (migración 009) -------------------------------

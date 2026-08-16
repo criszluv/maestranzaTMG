@@ -18,9 +18,9 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.dependencies import get_current_user, require_roles
-from app.models import IotMetrica
+from app.models import IotMetrica, Maquina
 from app.schemas.iot import MetricaCrear, MetricaRespuesta, ResumenPorMaquina
-from app.services.iot_metricas import MAX_METRICAS, podar_metricas
+from app.services.iot_metricas import PODA_MANUAL_POR_DEFECTO, podar_metricas
 
 router = APIRouter(
     prefix="/iot",
@@ -54,9 +54,20 @@ def crear_metrica(
     payload: MetricaCrear,
     db: Session = Depends(get_db),
 ) -> MetricaRespuesta:
-    """Crea una métrica IoT y poda automáticamente para no exceder MAX_METRICAS."""
+    """
+    Registra una lectura de telemetría. La fila se CONSERVA: la retención la
+    aplica la base de datos por antigüedad (90 días), no borrando en cada
+    inserción como antes. Sin historia no hay serie de tiempo ni detección.
+
+    Si el nombre de la máquina coincide con una máquina registrada, la lectura
+    queda vinculada a ella (`maquina_id`), que es lo que permite relacionar
+    telemetría, anomalías y órdenes de trabajo.
+    """
+    maquina = db.query(Maquina).filter(Maquina.nombre == payload.maquina).first()
+
     registro = IotMetrica(
         maquina=payload.maquina,
+        maquina_id=maquina.id if maquina else None,
         temperatura=payload.temperatura,
         humedad=payload.humedad,
         consumo_kw=payload.consumo_kw,
@@ -64,21 +75,18 @@ def crear_metrica(
     db.add(registro)
     db.commit()
     db.refresh(registro)
-
-    try:
-        podar_metricas(db, MAX_METRICAS)
-    except Exception:
-        logger.exception("Error podando métricas IoT después de crear una fila")
-
     return MetricaRespuesta.model_validate(registro)
 
 
 @router.post("/metricas/podar", dependencies=[Depends(require_roles())])  # solo admin
 def podar_metricas_endpoint(
-    max_registros: int = Query(MAX_METRICAS, ge=1),
+    max_registros: int = Query(PODA_MANUAL_POR_DEFECTO, ge=1),
     db: Session = Depends(get_db),
 ) -> dict[str, int]:
-    """Endpoint manual para podar la tabla."""
+    """
+    Poda MANUAL de la tabla (mantenimiento excepcional). La retención normal
+    la hace fn_depurar_retencion() por antigüedad.
+    """
     borradas = podar_metricas(db, max_registros)
     return {"eliminadas": borradas}
 

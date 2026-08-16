@@ -7,8 +7,12 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 EstadoPedido = Literal["pendiente", "en proceso", "terminado"]
-# Destino comercial al cerrar un pedido terminado.
-TipoCierre = Literal["pagado", "pendiente"]
+# 'comercial': se factura a un cliente.
+# 'mantenimiento': nace de una anomalía de planta y no se factura.
+TipoPedido = Literal["comercial", "mantenimiento"]
+# Destino al cerrar un pedido terminado. 'interno' es el cierre de una orden
+# de mantenimiento: no genera trabajo ni factura.
+TipoCierre = Literal["pagado", "pendiente", "interno"]
 
 # Límites de texto y de valor: evitan cadenas gigantes y montos absurdos
 # (defensa en profundidad, además del tope global de tamaño de payload).
@@ -22,6 +26,8 @@ class PedidoCreate(BaseModel):
     valor: int | None = _Valor
     encargado_id: int | None = None
     cliente_id: int | None = None
+    tipo: TipoPedido = "comercial"
+    maquina_id: int | None = None
 
 
 class PedidoUpdate(BaseModel):
@@ -31,6 +37,9 @@ class PedidoUpdate(BaseModel):
     valor: int | None = _Valor
     encargado_id: int | None = None
     cliente_id: int | None = None
+    # `tipo` NO se edita: cambiarlo dejaría el pedido incoherente con la
+    # anomalía que lo originó o con su registro comercial.
+    maquina_id: int | None = None
 
 
 class PedidoEstadoUpdate(BaseModel):
@@ -47,7 +56,9 @@ class PedidoCierre(BaseModel):
     el valor del pedido y `detalle` su nombre y descripción.
     """
 
-    tipo: TipoCierre
+    # En un pedido de mantenimiento este campo se ignora: su cierre siempre
+    # es 'interno' (no hay cliente al que facturar).
+    tipo: TipoCierre = "pagado"
     valor: int | None = _Valor
     fecha: date | None = None
     # Solo para el cierre 'pendiente' (número de la factura emitida).
@@ -64,6 +75,9 @@ class PedidoOut(BaseModel):
     valor: int | None = None
     encargado_id: int | None = None
     encargado_nombre: str | None = None
+    tipo: str = "comercial"
+    maquina_id: int | None = None
+    maquina_nombre: str | None = None
     cliente_id: int | None = None
     cliente_nombre: str | None = None
     # Cierre comercial: null = pedido aún no derivado a trabajos/facturas.

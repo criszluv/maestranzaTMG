@@ -795,6 +795,67 @@ def run():
     ).status_code == 400)
     client.delete(f"/api/facturas/{fac_suelta['id']}", headers=_auth(admin_token))
 
+    # 23f) PEDIDOS DE MANTENIMIENTO: nacen de la planta, no se facturan.
+    #      Cierran como 'interno' sin exigir cliente ni generar trabajo/factura.
+    dbm = TestingSession()
+    try:
+        from app.models import Maquina
+        maq = Maquina(nombre="Torno de pruebas", rpm_nominal=1500)
+        dbm.add(maq)
+        dbm.commit()
+        maquina_id = maq.id
+    finally:
+        dbm.close()
+
+    check("mantenimiento: sin máquina -> 400", client.post(
+        "/api/pedidos",
+        json={"pedido": "Cambio de rodamiento", "tipo": "mantenimiento"},
+        headers=_auth(rrhh_token),
+    ).status_code == 400)
+    check("mantenimiento: máquina inexistente -> 404", client.post(
+        "/api/pedidos",
+        json={"pedido": "X", "tipo": "mantenimiento", "maquina_id": 999999},
+        headers=_auth(rrhh_token),
+    ).status_code == 404)
+
+    r = client.post(
+        "/api/pedidos",
+        json={
+            "pedido": "Cambio de rodamiento",
+            "tipo": "mantenimiento",
+            "maquina_id": maquina_id,
+            "encargado_id": ids["emp@t.cl"],
+        },
+        headers=_auth(rrhh_token),
+    )
+    ped_mant = r.json() if r.status_code == 201 else {}
+    check("mantenimiento: crear -> 201 con máquina",
+          r.status_code == 201 and ped_mant.get("tipo") == "mantenimiento"
+          and ped_mant.get("maquina_nombre") == "Torno de pruebas")
+    check("mantenimiento: no lleva cliente", ped_mant.get("cliente_id") is None)
+
+    client.patch(
+        f"/api/pedidos/{ped_mant.get('id')}/estado",
+        json={"estado": "terminado"}, headers=_auth(emp_token),
+    )
+    r = client.post(
+        f"/api/pedidos/{ped_mant.get('id')}/cerrar",
+        json={"tipo": "pagado"},  # se ignora: mantenimiento cierra interno
+        headers=_auth(rrhh_token),
+    )
+    mant_cerrado = r.json() if r.status_code == 200 else {}
+    check("mantenimiento: cierra sin cliente -> 200", r.status_code == 200)
+    check("mantenimiento: cierre es 'interno'",
+          mant_cerrado.get("cierre_tipo") == "interno"
+          and mant_cerrado.get("cerrado_en") is not None)
+    check("mantenimiento: no genera trabajo ni factura",
+          mant_cerrado.get("trabajo_id") is None
+          and mant_cerrado.get("factura_id") is None)
+    check("mantenimiento: cerrado no se reabre -> 409", client.patch(
+        f"/api/pedidos/{ped_mant.get('id')}/estado",
+        json={"estado": "en proceso"}, headers=_auth(rrhh_token),
+    ).status_code == 409)
+
     # Un cliente dado de baja no se puede asignar a pedidos nuevos.
     client.post(f"/api/clientes/{cli['id']}/deshabilitar", headers=_auth(rrhh_token))
     check("pedidos: cliente deshabilitado -> 400", client.post(

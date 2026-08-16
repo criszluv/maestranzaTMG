@@ -27,7 +27,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.db import get_db
 from app.dependencies import get_current_user, require_roles
-from app.models import Cliente, Factura, Pedido, PedidoFoto, Trabajo, User
+from app.models import Cliente, Factura, Maquina, Pedido, PedidoFoto, Trabajo, User
 from app.schemas.pedido import (
     FotoPedidoOut,
     PedidoCierre,
@@ -79,6 +79,14 @@ def _validar_cliente(db: Session, cliente_id: int | None) -> None:
         )
 
 
+def _validar_maquina(db: Session, maquina_id: int | None) -> None:
+    """Al asignar una máquina (pedidos de mantenimiento), debe existir."""
+    if maquina_id is None:
+        return
+    if db.query(Maquina).filter(Maquina.id == maquina_id).first() is None:
+        raise HTTPException(status_code=404, detail="La máquina indicada no existe.")
+
+
 def _assert_no_cerrado(pedido: Pedido, campo: str) -> None:
     """Un pedido ya derivado a trabajos/facturas no cambia de estado ni de
     cliente: eso dejaría el registro comercial inconsistente."""
@@ -97,15 +105,17 @@ def _a_out(
     pedido: Pedido,
     encargado_nombre: str | None = None,
     cliente_nombre: str | None = None,
+    maquina_nombre: str | None = None,
 ) -> PedidoOut:
     out = PedidoOut.model_validate(pedido)
     out.encargado_nombre = encargado_nombre
     out.cliente_nombre = cliente_nombre
+    out.maquina_nombre = maquina_nombre
     return out
 
 
-def _nombres_de(db: Session, pedido: Pedido) -> tuple[str | None, str | None]:
-    """(encargado, cliente) para completar la respuesta tras escribir."""
+def _nombres_de(db: Session, pedido: Pedido) -> tuple[str | None, str | None, str | None]:
+    """(encargado, cliente, máquina) para completar la respuesta tras escribir."""
     encargado = (
         db.query(User.nombre).filter(User.id == pedido.encargado_id).scalar()
         if pedido.encargado_id
@@ -116,7 +126,12 @@ def _nombres_de(db: Session, pedido: Pedido) -> tuple[str | None, str | None]:
         if pedido.cliente_id
         else None
     )
-    return encargado, cliente
+    maquina = (
+        db.query(Maquina.nombre).filter(Maquina.id == pedido.maquina_id).scalar()
+        if pedido.maquina_id
+        else None
+    )
+    return encargado, cliente, maquina
 
 
 @router.get("", response_model=List[PedidoOut])
@@ -130,13 +145,18 @@ def listar_pedidos(
             Pedido,
             User.nombre.label("encargado_nombre"),
             Cliente.nombre.label("cliente_nombre"),
+            Maquina.nombre.label("maquina_nombre"),
         )
         .outerjoin(User, Pedido.encargado_id == User.id)
         .outerjoin(Cliente, Pedido.cliente_id == Cliente.id)
+        .outerjoin(Maquina, Pedido.maquina_id == Maquina.id)
         .order_by(Pedido.id.desc())
         .all()
     )
-    return [_a_out(p, encargado, cliente) for p, encargado, cliente in rows]
+    return [
+        _a_out(p, encargado, cliente, maquina)
+        for p, encargado, cliente, maquina in rows
+    ]
 
 
 @router.get("/mis-pedidos/{user_id}", response_model=List[PedidoOut])
@@ -156,14 +176,19 @@ def mis_pedidos(
             Pedido,
             User.nombre.label("encargado_nombre"),
             Cliente.nombre.label("cliente_nombre"),
+            Maquina.nombre.label("maquina_nombre"),
         )
         .outerjoin(User, Pedido.encargado_id == User.id)
         .outerjoin(Cliente, Pedido.cliente_id == Cliente.id)
+        .outerjoin(Maquina, Pedido.maquina_id == Maquina.id)
         .filter(Pedido.encargado_id == user_id)
         .order_by(Pedido.id.desc())
         .all()
     )
-    return [_a_out(p, encargado, cliente) for p, encargado, cliente in rows]
+    return [
+        _a_out(p, encargado, cliente, maquina)
+        for p, encargado, cliente, maquina in rows
+    ]
 
 
 @router.post("", response_model=PedidoOut, status_code=201)
@@ -174,6 +199,12 @@ def crear_pedido(
 ) -> PedidoOut:
     _validar_encargado(db, payload.encargado_id)
     _validar_cliente(db, payload.cliente_id)
+    _validar_maquina(db, payload.maquina_id)
+    if payload.tipo == "mantenimiento" and payload.maquina_id is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Una orden de mantenimiento debe indicar la máquina intervenida.",
+        )
     fijar_actor_auditoria(db, actor)
     nuevo = Pedido(**payload.model_dump())
     db.add(nuevo)
@@ -204,6 +235,8 @@ def actualizar_pedido(
     if "cliente_id" in datos and datos["cliente_id"] != pedido.cliente_id:
         _assert_no_cerrado(pedido, "cliente")
         _validar_cliente(db, datos["cliente_id"])
+    if "maquina_id" in datos and datos["maquina_id"] != pedido.maquina_id:
+        _validar_maquina(db, datos["maquina_id"])
 
     fijar_actor_auditoria(db, actor)
     for campo, valor in datos.items():
@@ -291,6 +324,21 @@ def cerrar_pedido(
                 "como 'terminado' primero."
             ),
         )
+
+    # Orden de MANTENIMIENTO: nace de una anomalía de planta, no se factura.
+    # Su cierre es interno y no genera trabajo ni factura.
+    if pedido.tipo == "mantenimiento":
+        fijar_actor_auditoria(db, actor)
+        pedido.cerrado_en = datetime.now(timezone.utc)
+        pedido.cierre_tipo = "interno"
+        db.commit()
+        db.refresh(pedido)
+        logger.info(
+            "Pedidos cerrar (mantenimiento) -> id=%s maquina=%s actor=%s",
+            pedido_id, pedido.maquina_id, actor.id,
+        )
+        return _a_out(pedido, *_nombres_de(db, pedido))
+
     if pedido.cliente_id is None:
         raise HTTPException(
             status_code=400,
@@ -345,7 +393,8 @@ def cerrar_pedido(
         "Pedidos cerrar -> id=%s tipo=%s destino=%s cliente=%s actor=%s",
         pedido_id, payload.tipo, destino_id, cliente.id, actor.id,
     )
-    return _a_out(pedido, _nombres_de(db, pedido)[0], cliente.nombre)
+    encargado, _, maquina = _nombres_de(db, pedido)
+    return _a_out(pedido, encargado, cliente.nombre, maquina)
 
 
 @router.delete("/{pedido_id}", status_code=204)
