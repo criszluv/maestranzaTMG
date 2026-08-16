@@ -61,6 +61,7 @@ function seccionesPara(rol: 'admin' | 'rrhh' | 'empleado'): SeccionNav[] {
       {
         titulo: 'Operación',
         items: [
+          { to: '/rrhh/maquinas', label: 'Máquinas', icon: 'panel' },
           { to: '/rrhh/clientes', label: 'Clientes', icon: 'usuarios' },
           { to: '/rrhh/trabajos', label: 'Trabajos', icon: 'pedidos' },
           { to: '/rrhh/pagos', label: 'Pagos pendientes', icon: 'solicitudes' },
@@ -85,6 +86,7 @@ function seccionesPara(rol: 'admin' | 'rrhh' | 'empleado'): SeccionNav[] {
     {
       titulo: 'Operación',
       items: [
+        { to: '/admin/maquinas', label: 'Máquinas', icon: 'panel' },
         { to: '/admin/clientes', label: 'Clientes', icon: 'usuarios' },
         { to: '/admin/trabajos', label: 'Trabajos', icon: 'pedidos' },
         { to: '/admin/pagos', label: 'Pagos pendientes', icon: 'solicitudes' },

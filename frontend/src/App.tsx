@@ -18,6 +18,7 @@ import MiPrivacidad from './features/privacidad/MiPrivacidad'
 import GestionPedidos from './features/pedidos/GestionPedidos'
 import MisPedidosEmpleado from './features/pedidos/MisPedidosEmpleado'
 import Auditoria from './features/auditoria/Auditoria'
+import GestionMaquinas from './features/maquinas/GestionMaquinas'
 import GestionClientes from './features/clientes/GestionClientes'
 import GestionTrabajos from './features/trabajos/GestionTrabajos'
 import PagosPendientes from './features/facturas/PagosPendientes'
@@ -132,6 +133,14 @@ export default function App() {
                 }
               />
               <Route
+                path="/rrhh/maquinas"
+                element={
+                  <ProtectedRoute rolRequerido="rrhh">
+                    <GestionMaquinas />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
                 path="/rrhh/auditoria"
                 element={
                   <ProtectedRoute rolRequerido="rrhh">
@@ -218,6 +227,14 @@ export default function App() {
                 element={
                   <ProtectedRoute rolRequerido="admin">
                     <GestionPedidos />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/maquinas"
+                element={
+                  <ProtectedRoute rolRequerido="rrhh">
+                    <GestionMaquinas />
                   </ProtectedRoute>
                 }
               />

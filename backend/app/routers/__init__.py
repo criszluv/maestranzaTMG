@@ -14,6 +14,7 @@ from app.routers import (
     clientes,
     facturas,
     iot,
+    maquinas,
     pedidos,
     privacidad,
     solicitudes,
@@ -25,7 +26,7 @@ api_router = APIRouter()
 
 for modulo in (
     auth, usuarios, solicitudes, asistencia, pedidos, iot, privacidad,
-    auditoria, clientes, trabajos, facturas,
+    auditoria, clientes, trabajos, facturas, maquinas,
 ):
     api_router.include_router(modulo.router)
 
